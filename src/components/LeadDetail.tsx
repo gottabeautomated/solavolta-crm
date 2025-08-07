@@ -456,6 +456,15 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
                   </p>
                 </div>
               )}
+              {(!lead.lat || !lead.lng) && (
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Geocoding</label>
+                  <p className="text-sm text-gray-900">
+                    {lead.geocoding_status || '—'}
+                    {lead.geocoding_error ? ` – ${lead.geocoding_error}` : ''}
+                  </p>
+                </div>
+              )}
             </div>
           </Card>
         </div>

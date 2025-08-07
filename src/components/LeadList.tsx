@@ -7,6 +7,7 @@ import { SearchAndFilter } from './SearchAndFilter'
 import { NewLeadModal } from './forms/NewLeadModal'
 import { DebugPanel } from './ui/DebugPanel'
 import type { Lead, LeadFilters } from '../types/leads'
+import { useGeocoding } from '../hooks/useGeocoding'
 
 interface LeadListProps {
   onLeadClick?: (lead: Lead) => void
@@ -14,6 +15,7 @@ interface LeadListProps {
 
 export function LeadList({ onLeadClick }: LeadListProps) {
   const { leads, loading, error, refetch } = useLeads()
+  const { isGeocoding, geocodeMultipleLeads } = useGeocoding()
   const [activeFilters, setActiveFilters] = useState<LeadFilters>({})
   const [showNewModal, setShowNewModal] = useState(false)
 
@@ -176,6 +178,18 @@ export function LeadList({ onLeadClick }: LeadListProps) {
                   className="text-sm text-gray-500 hover:text-gray-700"
                 >
                   Aktualisieren
+                </button>
+                <button
+                  onClick={async () => {
+                    const withoutCoords = (leads || []).filter(l => l.address && !l.lat && !l.lng)
+                    if (withoutCoords.length === 0) return
+                    await geocodeMultipleLeads(withoutCoords as Lead[])
+                    await refetch()
+                  }}
+                  disabled={isGeocoding}
+                  className="inline-flex items-center px-3 py-1.5 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  Batch Geocoding
                 </button>
                 <button
                   onClick={() => setShowNewModal(true)}

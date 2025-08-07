@@ -25,6 +25,10 @@ export interface Lead {
   exported_to_sap: boolean | null
   lat: number | null
   lng: number | null
+  // Geocoding Felder (optional)
+  geocoding_status?: string | null
+  geocoding_error?: string | null
+  geocoded_at?: string | null
   offers?: OfferData[]
   // Neue Felder für "Nächste Aktion"
   next_action?: string | null
