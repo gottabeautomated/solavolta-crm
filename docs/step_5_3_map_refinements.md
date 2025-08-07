@@ -32,4 +32,4 @@ Bedienbarkeit und Übersicht verbessern: Namens-Labels an Markern, automatisches
 - [x] Keine Regressions in Liste/Detail
 
 ## Nächster Step
-Step 6.1: n8n Geocoding-Workflow (Automationen)
+[Step 6.1: n8n Geocoding-Workflow (Automationen)](./step_6_1_n8n_geocoding.md)
