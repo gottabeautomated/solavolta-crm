@@ -113,6 +113,13 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
     return new Date(dateString).toLocaleString('de-DE')
   }
 
+  const handleGeocodingSuccess = async () => {
+    // Kurz warten, damit n8n das Update in Supabase schreiben kann
+    await new Promise((r) => setTimeout(r, 500))
+    const { data } = await fetchLead(leadId)
+    if (data) setLead(data)
+  }
+
   return (
     <div className="space-y-6">
       {/* Header mit Navigation */}
@@ -251,7 +258,7 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
                     <p className="text-sm text-gray-900">{lead.address || '-'}</p>
                     {lead.address && (!lead.lat || !lead.lng) && (
                       <div className="mt-2">
-                        <GeocodingButton lead={lead} variant="primary" size="sm" />
+                        <GeocodingButton lead={lead} variant="primary" size="sm" onSuccess={handleGeocodingSuccess} />
                       </div>
                     )}
                   </div>
