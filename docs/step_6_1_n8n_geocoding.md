@@ -32,6 +32,16 @@ Automatisches Geocoding-System mit n8n implementieren, das neue Leads überwacht
 
 ## 🔧 Voraussetzungen
 
+### ToDo für morgen (schnelle Inbetriebnahme)
+- [ ] `VITE_GEOCODING_WEBHOOK_URL` in `lead-dashboard/.env` setzen: `https://n8n.beautomated.at/webhook/geocode-lead` und Dev-Server neu starten
+- [ ] In n8n einloggen: https://n8n.beautomated.at/
+- [ ] Supabase-Credentials anlegen (Service Role Key hinterlegen)
+- [ ] Workflow „Lead Geocoding Automation“ importieren (JSON unten) und aktivieren
+- [ ] Im Webhook-Node prüfen, dass der Pfad `geocode-lead` ist (Production-URL = `/webhook/geocode-lead`)
+- [ ] Test über Terminal: `curl -X POST https://n8n.beautomated.at/webhook/geocode-lead -H "Content-Type: application/json" -d '{"lead_id":"test-id","address":"Stephansplatz 1, 1010 Wien"}'`
+- [ ] Frontend testen: In einem Lead ohne Koordinaten auf „Koordinaten finden“ klicken
+- [ ] Falls OK: Supabase-Update-Node aktivieren und erneut testen
+
 ### n8n Installation
 ```bash
 # Option 1: Docker (Empfohlen)
