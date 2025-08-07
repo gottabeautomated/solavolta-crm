@@ -6,28 +6,28 @@ Eine interaktive Kartenansicht mit Leaflet.js implementieren, die alle Leads mit
 ## 📋 Checkliste
 
 ### Leaflet Integration
-- [ ] `react-leaflet` und `leaflet` konfigurieren
-- [ ] CSS imports und Icon-Setup
-- [ ] Basis-Karte mit OpenStreetMap
-- [ ] Österreich als Standard-Ansicht
+- [x] `react-leaflet` und `leaflet` konfigurieren
+- [x] CSS imports und Icon-Setup
+- [x] Basis-Karte mit OpenStreetMap
+- [x] Österreich als Standard-Ansicht
 
 ### Lead-Marker
-- [ ] Marker für jeden Lead mit Koordinaten
-- [ ] Custom Marker-Icons nach Status
-- [ ] Popups mit Lead-Informationen
-- [ ] Direktwahl-Links in Popups
+- [x] Marker für jeden Lead mit Koordinaten
+- [x] Custom Marker-Icons nach Status
+- [x] Popups mit Lead-Informationen
+- [x] Direktwahl-Links in Popups
 
 ### Map-Komponenten
-- [ ] `MapView.tsx` Hauptkomponente
-- [ ] `LeadMarker.tsx` für einzelne Marker
-- [ ] `MapControls.tsx` für Zoom/Filter
-- [ ] Mobile-responsive Container
+- [x] `MapView.tsx` Hauptkomponente
+- [x] `LeadMarker.tsx` für einzelne Marker
+- [x] `MapControls.tsx` für Zoom/Filter
+- [x] Mobile-responsive Container
 
 ### Navigation Integration
-- [ ] Map-View in App-Navigation einbinden
-- [ ] Toggle zwischen Liste und Karte
-- [ ] Loading States für Karte
-- [ ] Error Handling bei fehlenden Koordinaten
+- [x] Map-View in App-Navigation einbinden
+- [x] Toggle zwischen Liste und Karte
+- [x] Loading States für Karte
+- [x] Error Handling bei fehlenden Koordinaten
 
 ## 🔧 Cursor Commands
 
@@ -77,7 +77,6 @@ export const getMarkerIcon = (status: LeadStatus | null): L.DivIcon => {
         <div class="${config.color} ${config.ring} ring-4 w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg">
           <span class="text-lg">${config.emoji}</span>
         </div>
-        <div class="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-${config.color.replace('bg-', '')} opacity-80"></div>
       </div>
     `,
     className: 'custom-div-icon',
@@ -729,23 +728,23 @@ npm run dev
 ```
 
 ### 3. Kartenansicht testen
-- [ ] **Navigation**: "Kartenansicht" Button in Lead-Liste funktioniert
-- [ ] **Karte lädt**: OpenStreetMap wird angezeigt
-- [ ] **Marker anzeigen**: Leads mit Koordinaten werden als Marker angezeigt
-- [ ] **Marker-Icons**: Verschiedene Icons je nach Lead-Status
-- [ ] **Popups**: Klick auf Marker öffnet Info-Popup
+- [x] **Navigation**: "Kartenansicht" Button in Lead-Liste funktioniert
+- [x] **Karte lädt**: OpenStreetMap wird angezeigt
+- [x] **Marker anzeigen**: Leads mit Koordinaten werden als Marker angezeigt
+- [x] **Marker-Icons**: Verschiedene Icons je nach Lead-Status
+- [x] **Popups**: Klick auf Marker öffnet Info-Popup
 
 ### 4. Popup-Funktionen testen
-- [ ] **Anrufen-Button**: `tel:`-Link funktioniert auf Mobile
-- [ ] **E-Mail-Button**: E-Mail-Client öffnet sich
-- [ ] **Details-Button**: Navigation zur Lead-Detailansicht
-- [ ] **Popup-Inhalt**: Alle Lead-Informationen werden angezeigt
+- [x] **Anrufen-Button**: `tel:`-Link funktioniert auf Mobile
+- [x] **E-Mail-Button**: E-Mail-Client öffnet sich
+- [x] **Details-Button**: Navigation zur Lead-Detailansicht
+- [x] **Popup-Inhalt**: Alle Lead-Informationen werden angezeigt
 
 ### 5. Map-Controls testen
-- [ ] **"Alle Leads" Button**: Zoomt zu allen Markern
-- [ ] **"Österreich" Button**: Kehrt zur Standard-Ansicht zurück
-- [ ] **Status-Filter**: Filtert Marker nach Lead-Status
-- [ ] **Lead-Counter**: Zeigt korrekte Anzahl der Marker
+- [x] **"Alle Leads" Button**: Zoomt zu allen Markern
+- [x] **"Österreich" Button**: Kehrt zur Standard-Ansicht zurück
+- [x] **Status-Filter**: Filtert Marker nach Lead-Status
+- [x] **Lead-Counter**: Zeigt korrekte Anzahl der Marker
 
 ### 6. Mobile Design testen
 ```bash
@@ -755,20 +754,20 @@ npm run dev
 ```
 
 ### 7. Performance testen
-- [ ] **Viele Marker**: Mit vielen Test-Leads testen
-- [ ] **Zoom-Performance**: Rein/Raus-Zoomen funktioniert flüssig
-- [ ] **Filter-Performance**: Status-Filter reagiert schnell
+- [x] **Viele Marker**: Mit vielen Test-Leads testen
+- [x] **Zoom-Performance**: Rein/Raus-Zoomen funktioniert flüssig
+- [x] **Filter-Performance**: Status-Filter reagiert schnell
 
 ## ✅ Definition of Done
-- [ ] Karte wird mit Österreich-Zentrum geladen
-- [ ] Alle Leads mit Koordinaten werden als Marker angezeigt
-- [ ] Marker haben status-abhängige Icons
-- [ ] Popups zeigen alle relevanten Lead-Informationen
-- [ ] Direktwahl-Links funktionieren
-- [ ] Navigation zwischen Liste und Karte funktioniert
-- [ ] Map-Controls für Zoom und Filter funktionieren
-- [ ] Mobile-responsive Design
-- [ ] Loading/Error States werden behandelt
+- [x] Karte wird mit Österreich-Zentrum geladen
+- [x] Alle Leads mit Koordinaten werden als Marker angezeigt
+- [x] Marker haben status-abhängige Icons
+- [x] Popups zeigen alle relevanten Lead-Informationen
+- [x] Direktwahl-Links funktionieren
+- [x] Navigation zwischen Liste und Karte funktioniert
+- [x] Map-Controls für Zoom und Filter funktionieren
+- [x] Mobile-responsive Design
+- [x] Loading/Error States werden behandelt
 
 ## 🔗 Nächster Step
 **Step 5.2:** Lead-Marker erweitern (Clustering, Custom Icons)

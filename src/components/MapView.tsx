@@ -9,6 +9,13 @@ import { MAP_CONFIG, getLeadsWithCoordinates, fixLeafletIcons } from '../lib/map
 import type { Lead, LeadStatus } from '../types/leads'
 import 'leaflet/dist/leaflet.css'
 
+// Neue erweiterte Features
+import { MapFilterSidebar } from './MapFilterSidebar'
+import { MapThemeSwitcher } from './MapThemeSwitcher'
+import { LeadHeatmap } from './LeadHeatmap'
+import { MAP_THEMES } from '../lib/mapThemes'
+import { ClusterMarker } from './ClusterMarker'
+
 interface MapViewProps {
   onLeadClick?: (lead: Lead) => void
 }
@@ -18,17 +25,28 @@ export function MapView({ onLeadClick }: MapViewProps) {
   const [statusFilter, setStatusFilter] = useState<LeadStatus | null>(null)
   const [mapLoading, setMapLoading] = useState(true)
 
+  // Erweiterte Feature-States
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [currentTheme, setCurrentTheme] = useState(MAP_THEMES[0])
+  const [showHeatmap, setShowHeatmap] = useState(false)
+  const [clusteringEnabled, setClusteringEnabled] = useState(true)
+  const [filteredLeads, setFilteredLeads] = useState<Lead[]>([])
+
   useEffect(() => {
     fixLeafletIcons()
-    const timer = setTimeout(() => setMapLoading(false), 1000)
+    const timer = setTimeout(() => setMapLoading(false), 800)
     return () => clearTimeout(timer)
   }, [])
 
-  const filteredLeads = useMemo(() => {
-    let result = getLeadsWithCoordinates(leads)
+  useEffect(() => {
+    setFilteredLeads(getLeadsWithCoordinates(leads))
+  }, [leads])
+
+  const filteredByStatus = useMemo(() => {
+    let result = filteredLeads
     if (statusFilter) result = result.filter((l) => l.lead_status === statusFilter)
     return result
-  }, [leads, statusFilter])
+  }, [filteredLeads, statusFilter])
 
   if (loading || mapLoading) {
     return (
@@ -70,46 +88,71 @@ export function MapView({ onLeadClick }: MapViewProps) {
   }
 
   return (
-    <div className="relative h-screen">
-      <MapContainer
-        center={MAP_CONFIG.center}
-        zoom={MAP_CONFIG.zoom}
-        minZoom={MAP_CONFIG.minZoom}
-        maxZoom={MAP_CONFIG.maxZoom}
-        zoomControl={MAP_CONFIG.zoomControl}
-        scrollWheelZoom={MAP_CONFIG.scrollWheelZoom}
-        doubleClickZoom={MAP_CONFIG.doubleClickZoom}
-        dragging={MAP_CONFIG.dragging}
-        className="h-full w-full"
-        style={{ height: '100vh', width: '100vw' }}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maxZoom={19}
-        />
+    <div className="relative h-screen flex">
+      {/* Filter Sidebar */}
+      <MapFilterSidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} leads={leads} onFilteredLeadsChange={setFilteredLeads} />
 
-        {filteredLeads.map((lead) => (
-          <LeadMarker key={lead.id} lead={lead} onLeadClick={onLeadClick} />
-        ))}
+      <div className="flex-1 relative">
+        <MapContainer
+          center={MAP_CONFIG.center}
+          zoom={MAP_CONFIG.zoom}
+          minZoom={MAP_CONFIG.minZoom}
+          maxZoom={MAP_CONFIG.maxZoom}
+          zoomControl={MAP_CONFIG.zoomControl}
+          scrollWheelZoom={MAP_CONFIG.scrollWheelZoom}
+          doubleClickZoom={MAP_CONFIG.doubleClickZoom}
+          dragging={MAP_CONFIG.dragging}
+          className="h-full w-full"
+          style={{ height: '100vh', width: '100%' }}
+        >
+          <TileLayer attribution={currentTheme.attribution} url={currentTheme.url} maxZoom={currentTheme.maxZoom || 19} />
 
-        <MapControls leads={leads} onFilterChange={setStatusFilter} currentFilter={statusFilter} />
-      </MapContainer>
+          {clusteringEnabled ? (
+            <ClusterMarker leads={filteredByStatus} onLeadClick={onLeadClick} />
+          ) : (
+            filteredByStatus.map((lead) => <LeadMarker key={lead.id} lead={lead} onLeadClick={onLeadClick} />)
+          )}
 
-      <div className="md:hidden absolute bottom-4 left-4 right-4 bg-white rounded-lg shadow-lg p-3 z-[1000]">
-        <div className="flex items-center justify-between">
-          <div className="text-sm">
-            <span className="font-medium">{filteredLeads.length}</span> Leads
-            {statusFilter && <span className="text-gray-500"> • {statusFilter}</span>}
+          <MapControls leads={leads} onFilterChange={setStatusFilter} currentFilter={statusFilter} />
+          <LeadHeatmap leads={filteredByStatus} isVisible={showHeatmap} />
+        </MapContainer>
+
+        {/* Top Controls */}
+        <div className="absolute top-4 right-4 z-[1000] space-y-3">
+          <MapThemeSwitcher currentTheme={currentTheme} onThemeChange={setCurrentTheme} />
+          <div className="bg-white rounded-lg shadow-lg p-3 space-y-2">
+            <h4 className="text-sm font-semibold text-gray-700">Ansicht</h4>
+            <label className="flex items-center space-x-2 text-sm">
+              <input type="checkbox" checked={clusteringEnabled} onChange={(e) => setClusteringEnabled(e.target.checked)} className="rounded" />
+              <span>Clustering</span>
+            </label>
+            <label className="flex items-center space-x-2 text-sm">
+              <input type="checkbox" checked={showHeatmap} onChange={(e) => setShowHeatmap(e.target.checked)} className="rounded" />
+              <span>Heatmap</span>
+            </label>
           </div>
-          <button
-            onClick={() => setStatusFilter(null)}
-            className={`text-xs px-2 py-1 rounded transition-colors ${
-              statusFilter ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-100 text-gray-600'
-            }`}
-          >
-            {statusFilter ? 'Filter entfernen' : 'Alle'}
-          </button>
+        </div>
+
+        {/* Filter Toggle Button (Mobile) */}
+        <button onClick={() => setSidebarOpen(true)} className="md:hidden absolute top-4 left-4 z-[1000] bg-white text-gray-700 px-3 py-2 rounded-lg shadow-lg hover:bg-gray-50 transition-colors inline-flex items-center text-sm font-medium">
+          <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
+          Filter
+          {filteredLeads.length !== leads.length && <span className="ml-2 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">{filteredLeads.length}</span>}
+        </button>
+
+        {/* Stats Panel (Mobile) */}
+        <div className="md:hidden absolute bottom-4 left-4 right-4 bg-white rounded-lg shadow-lg p-3 z-[1000]">
+          <div className="flex items-center justify-between text-sm">
+            <div>
+              <span className="font-medium">{filteredByStatus.length}</span> von <span className="font-medium">{leads.length}</span> Leads
+            </div>
+            <div className="flex items-center space-x-2">
+              <button onClick={() => setShowHeatmap(!showHeatmap)} className={`text-xs px-2 py-1 rounded transition-colors ${showHeatmap ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>{showHeatmap ? '🔥 Heatmap' : 'Heatmap'}</button>
+              <button onClick={() => setClusteringEnabled(!clusteringEnabled)} className={`text-xs px-2 py-1 rounded transition-colors ${clusteringEnabled ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{clusteringEnabled ? '📍 Cluster' : 'Cluster'}</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
