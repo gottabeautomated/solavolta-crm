@@ -6,6 +6,7 @@ import { Card, CardSection } from './ui/Card'
 import { IconButton } from './ui/IconButton'
 import { LeadStatusBadge, Badge } from './ui/Badge'
 import { LeadForm } from './forms/LeadForm'
+import { StatusHistory } from './status/StatusHistory'
 import type { Lead } from '../types/leads'
 
 interface LeadDetailProps {
@@ -410,6 +411,9 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
               </div>
             </Card>
           )}
+
+          {/* Status-Historie */}
+          <StatusHistory leadId={lead.id} />
 
           {/* Meta-Informationen */}
           <Card title="Meta-Informationen">

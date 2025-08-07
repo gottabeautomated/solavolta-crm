@@ -7,6 +7,8 @@ import { Checkbox } from '../ui/Checkbox'
 import { useForm } from '../../hooks/useForm'
 import type { Lead, LeadStatus, ContactType, PhoneStatus, OfferData, LostReason } from '../../types/leads'
 import { LEAD_STATUS_OPTIONS, CONTACT_TYPE_OPTIONS, PHONE_STATUS_OPTIONS, LOST_REASON_OPTIONS } from '../../types/leads'
+import { useStatusTracking } from '../../hooks/status/useStatusTracking'
+import { supabase } from '../../lib/supabase'
 
 interface LeadFormData {
   name: string
@@ -47,6 +49,7 @@ interface LeadFormProps {
 
 export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadFormProps) {
   const [offers, setOffers] = useState<OfferData[]>([])
+  const { trackStatusChange } = useStatusTracking()
   
   const validateForm = (values: LeadFormData) => {
     const errors: Record<string, string> = {}
@@ -105,8 +108,8 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
       follow_up: lead.follow_up || false,
       follow_up_date: lead.follow_up_date || '',
       exported_to_sap: lead.exported_to_sap || false,
-             offers: [],
-       next_action: lead.next_action || '',
+      offers: [],
+      next_action: lead.next_action || '',
        next_action_date: lead.next_action_date || '',
        next_action_time: lead.next_action_time || '',
        preliminary_offer: lead.preliminary_offer || false,
@@ -126,7 +129,7 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
          doc_link: values.doc_link || null,
          calendar_link: values.calendar_link || null,
          follow_up_date: values.follow_up_date || null,
-         offers: offers,
+                   offers: offers,
          // Neue Felder für "Nächste Aktion"
          next_action: values.next_action || null,
          next_action_date: values.next_action_date || null,
@@ -135,6 +138,26 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
          // Neues Feld für "Verloren" Grund
          lost_reason: values.lost_reason || null
        }
+
+      // Status-Änderung tracken wenn sich relevante Felder geändert haben
+      const hasStatusChange = 
+        lead.lead_status !== values.lead_status ||
+        lead.phone_status !== values.phone_status ||
+        lead.follow_up !== values.follow_up ||
+        lead.appointment_date !== values.appointment_date
+
+      if (hasStatusChange) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          await trackStatusChange(
+            lead.id,
+            lead,
+            { ...lead, ...updateData },
+            user.id,
+            'Manuelle Bearbeitung'
+          )
+        }
+      }
 
       await onSave(updateData)
     }

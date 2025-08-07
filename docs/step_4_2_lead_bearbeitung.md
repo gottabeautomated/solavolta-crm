@@ -3,32 +3,77 @@
 ## 🎯 Ziel
 Edit-Mode für Lead-Details implementieren mit Formular-Validierung, Speichern/Abbrechen Funktionalität und Status-Management.
 
+## 🚀 Implementierte Features
+
+### ✅ Dynamische Kontextbereiche
+- **"Nächste Aktion"** basierend auf Telefonstatus:
+  - `erreicht` → Termin (Datum + Zeit) oder Angebot (Vorabangebot)
+  - `keine Antwort/besetzt` → Wiedervorlage (Datum)
+  - `nicht verfügbar` → Notiz (keine Datum/Zeit erforderlich)
+
+- **"Verloren" Kontextbereich** mit 4 Verlustgründen:
+  - Kein Interesse mehr
+  - Hat sich für eine andere Firma entschieden
+  - Projekt auf einen späteren Zeitpunkt verschoben
+  - Kunde meldet sich nicht mehr
+
+### ✅ Erweiterte Form-Komponenten
+- **TimePicker** mit zweistufiger Auswahl (Stunde → Minute)
+- **Kontextuelle Menüs** für Angebote & Leistungen
+- **Vorabangebot-Funktionalität** mit OfferData Integration
+- **Validierung** für alle neuen Felder
+
+### ✅ Datenbank-Integration
+- **Neue Felder** in `leads` Tabelle:
+  - `next_action`, `next_action_date`, `next_action_time`
+  - `preliminary_offer`, `lost_reason`
+- **SQL-Script** für Datenbank-Update bereitgestellt
+- **TypeScript Interfaces** erweitert
+
+### ✅ UX/UI Verbesserungen
+- **Farbkodierte Kontextbereiche** (rot für "Verloren", blau für "Nächste Aktion")
+- **Auto-Reset** von abhängigen Feldern
+- **Mobile-optimiert** mit responsive Design
+- **Loading States** und Error Handling
+
 ## 📋 Checkliste
 
 ### Edit-Mode Funktionalität
-- [ ] Edit/View Mode Toggle in LeadDetail
-- [ ] Formular-Komponenten für alle Lead-Felder
-- [ ] Form-Validierung implementieren
-- [ ] Save/Cancel Buttons mit Funktionalität
+- [x] Edit/View Mode Toggle in LeadDetail
+- [x] Formular-Komponenten für alle Lead-Felder
+- [x] Form-Validierung implementieren
+- [x] Save/Cancel Buttons mit Funktionalität
 
 ### Form-Komponenten
-- [ ] `components/forms/LeadForm.tsx` erstellen
-- [ ] Input-Komponenten für verschiedene Feldtypen
-- [ ] Dropdown-Komponenten für Status/Kontakttyp
-- [ ] Checkbox-Komponenten für Angebote
-- [ ] Date-Picker für Termine
+- [x] `components/forms/LeadForm.tsx` erstellt
+- [x] Input-Komponenten für verschiedene Feldtypen
+- [x] Dropdown-Komponenten für Status/Kontakttyp
+- [x] Checkbox-Komponenten für Angebote
+- [x] Date-Picker für Termine
+- [x] TimePicker mit zweistufiger Auswahl
+- [x] Kontextuelle Menüs für Angebote
 
 ### Daten-Management
-- [ ] updateLead Hook Integration
-- [ ] Form State Management
-- [ ] Optimistic Updates
-- [ ] Error Handling beim Speichern
+- [x] updateLead Hook Integration
+- [x] Form State Management mit useForm Hook
+- [x] Optimistic Updates
+- [x] Error Handling beim Speichern
+- [x] Neue Datenbank-Felder für "Nächste Aktion"
+- [x] Neue Datenbank-Felder für "Verloren" Grund
+
+### Dynamische Kontextbereiche
+- [x] "Nächste Aktion" basierend auf Telefonstatus
+- [x] "Verloren" Kontextbereich mit 4 Verlustgründen
+- [x] Angebote & Leistungen mit kontextuellen Menüs
+- [x] Vorabangebot-Funktionalität
 
 ### UX/UI
-- [ ] Loading States während Save
-- [ ] Success/Error Messages
-- [ ] Unsaved Changes Warning
-- [ ] Mobile-optimierte Formulare
+- [x] Loading States während Save
+- [x] Success/Error Messages
+- [x] Unsaved Changes Warning
+- [x] Mobile-optimierte Formulare
+- [x] Rote Kontextbereiche für "Verloren"
+- [x] Blaue Kontextbereiche für "Nächste Aktion"
 
 ## 🔧 Cursor Commands
 
@@ -978,19 +1023,30 @@ npm run dev
 ```
 
 ## ✅ Definition of Done
-- [ ] Edit/View Mode Toggle funktioniert
-- [ ] Formular zeigt alle Lead-Felder
-- [ ] Form-Validierung funktioniert korrekt
-- [ ] Speichern aktualisiert Lead erfolgreich
-- [ ] Abbrechen kehrt zur Read-Only Ansicht zurück
-- [ ] Loading States während Save-Operation
-- [ ] Success/Error Messages werden angezeigt
-- [ ] "Ungespeicherte Änderungen" Warning
-- [ ] Mobile-responsive Formular
-- [ ] Conditional Fields (Follow-up Datum)
+- [x] Edit/View Mode Toggle funktioniert
+- [x] Formular zeigt alle Lead-Felder
+- [x] Form-Validierung funktioniert korrekt
+- [x] Speichern aktualisiert Lead erfolgreich
+- [x] Abbrechen kehrt zur Read-Only Ansicht zurück
+- [x] Loading States während Save-Operation
+- [x] Success/Error Messages werden angezeigt
+- [x] "Ungespeicherte Änderungen" Warning
+- [x] Mobile-responsive Formular
+- [x] Conditional Fields (Follow-up Datum)
+- [x] Dynamische "Nächste Aktion" basierend auf Telefonstatus
+- [x] "Verloren" Kontextbereich mit Verlustgründen
+- [x] Angebote & Leistungen mit kontextuellen Menüs
+- [x] TimePicker mit zweistufiger Auswahl
+- [x] Datenbank-Integration für alle neuen Felder
 
 ## 🔗 Nächster Step
 **Step 4.3:** Status-Management und automatisches Tracking
+
+## 📦 Git-Integration
+- [x] **Feature-Branch** erstellt: `feature/step-4-2-lead-edit`
+- [x] **Commit** mit konventioneller Message: `feat(lead-edit): step 4.2 lead-bearbeitung mit dynamischen kontextbereichen implementiert`
+- [x] **Code gepusht** auf GitHub: [https://github.com/gottabeautomated/solavolta-crm](https://github.com/gottabeautomated/solavolta-crm)
+- [x] **Repository** erfolgreich verknüpft und synchronisiert
 
 ---
 
