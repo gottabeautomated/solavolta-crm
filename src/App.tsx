@@ -1,40 +1,63 @@
-import { Login } from './components/Login'
-import { useAuth } from './hooks/useAuth'
+import React, { useState } from 'react'
+import { AuthProvider } from './contexts/AuthContext'
+import { ProtectedRoute } from './components/ProtectedRoute'
 import { Layout } from './components/Layout'
-import { supabase } from './lib/supabase'
+import { LeadList } from './components/LeadList'
+import { LeadDetail } from './components/LeadDetail'
+import type { Lead } from './types/leads'
 
-function App() {
-  const { user, loading } = useAuth()
+type View = 'list' | 'detail'
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    )
+function Dashboard() {
+  const [currentView, setCurrentView] = useState<View>('list')
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
+
+  const handleLeadClick = (lead: Lead) => {
+    setSelectedLeadId(lead.id)
+    setCurrentView('detail')
   }
 
-  if (!user) {
-    return <Login />
+  const handleBackToList = () => {
+    setCurrentView('list')
+    setSelectedLeadId(null)
   }
 
   return (
     <Layout>
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">
-          Willkommen, {user.email}!
-        </h2>
-        <p className="text-gray-600">
-          Login erfolgreich! 🎉
-        </p>
-        <button
-          onClick={() => supabase.auth.signOut()}
-          className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-        >
-          Abmelden
-        </button>
+      <div className="space-y-6">
+        {currentView === 'list' && (
+          <>
+            {/* Header */}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Lead Dashboard</h1>
+              <p className="text-gray-600">
+                Verwalten Sie Ihre Vertriebskontakte
+              </p>
+            </div>
+
+            {/* Lead Liste */}
+            <LeadList onLeadClick={handleLeadClick} />
+          </>
+        )}
+
+        {currentView === 'detail' && selectedLeadId && (
+          <LeadDetail 
+            leadId={selectedLeadId}
+            onBack={handleBackToList}
+          />
+        )}
       </div>
     </Layout>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <ProtectedRoute>
+        <Dashboard />
+      </ProtectedRoute>
+    </AuthProvider>
   )
 }
 
