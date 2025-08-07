@@ -58,9 +58,15 @@ export function useLeads() {
   // Neuen Lead erstellen
   const createLead = useCallback(async (leadData: CreateLeadInput): Promise<DatabaseResponse<Lead>> => {
     try {
+      // Get current user ID for RLS
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        throw new Error('Benutzer nicht authentifiziert')
+      }
+
       const { data, error } = await supabase
         .from('leads')
-        .insert([leadData])
+        .insert([{ ...leadData, user_id: user.id }])
         .select()
         .single()
 
