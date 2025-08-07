@@ -42,6 +42,13 @@ Automatisches Geocoding-System mit n8n implementieren, das neue Leads überwacht
 - [ ] Frontend testen: In einem Lead ohne Koordinaten auf „Koordinaten finden“ klicken
 - [ ] Falls OK: Supabase-Update-Node aktivieren und erneut testen
 
+### CORS/Headers (wichtig für Browser-Aufrufe)
+- In „Respond to Webhook“-Node optional folgende Header setzen:
+  - `Access-Control-Allow-Origin: *`
+  - `Access-Control-Allow-Headers: Content-Type`
+  - `Access-Control-Allow-Methods: POST, OPTIONS`
+  - `Cache-Control: no-store`
+
 ### n8n Installation
 ```bash
 # Option 1: Docker (Empfohlen)

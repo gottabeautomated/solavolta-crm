@@ -62,7 +62,7 @@ function Dashboard() {
             <StatusOverview />
 
             {/* Lead Liste */}
-            <GeocodingDebugPanel />
+            {import.meta.env.DEV && <GeocodingDebugPanel />}
             <LeadList onLeadClick={handleLeadClick} />
           </div>
         </Layout>
