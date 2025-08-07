@@ -5,6 +5,7 @@ import { Layout } from './components/Layout'
 import { LeadList } from './components/LeadList'
 import { LeadDetail } from './components/LeadDetail'
 import { StatusOverview } from './components/status/StatusOverview'
+import { GeocodingDebugPanel } from './components/GeocodingDebugPanel'
 import { MapView } from './components/MapView'
 import type { Lead } from './types/leads'
 
@@ -61,6 +62,7 @@ function Dashboard() {
             <StatusOverview />
 
             {/* Lead Liste */}
+            <GeocodingDebugPanel />
             <LeadList onLeadClick={handleLeadClick} />
           </div>
         </Layout>
