@@ -4,6 +4,7 @@ import { LoadingSpinner } from './ui/LoadingSpinner'
 import { ErrorMessage } from './ui/ErrorMessage'
 import { LeadStatusBadge, Badge } from './ui/Badge'
 import { SearchAndFilter } from './SearchAndFilter'
+import { NewLeadModal } from './forms/NewLeadModal'
 import { DebugPanel } from './ui/DebugPanel'
 import type { Lead, LeadFilters } from '../types/leads'
 
@@ -14,6 +15,7 @@ interface LeadListProps {
 export function LeadList({ onLeadClick }: LeadListProps) {
   const { leads, loading, error, refetch } = useLeads()
   const [activeFilters, setActiveFilters] = useState<LeadFilters>({})
+  const [showNewModal, setShowNewModal] = useState(false)
 
   // Client-side filtering - verhindert API-Calls bei jeder Filter-Änderung
   const filteredLeads = useMemo(() => {
@@ -92,11 +94,12 @@ export function LeadList({ onLeadClick }: LeadListProps) {
           </svg>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Keine Leads vorhanden</h3>
           <p className="text-gray-600 mb-4">Erstellen Sie Ihren ersten Lead.</p>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+          <button onClick={() => setShowNewModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
             Lead erstellen
           </button>
         </div>
       </div>
+      <NewLeadModal isOpen={showNewModal} onClose={() => setShowNewModal(false)} onCreated={(lead)=> onLeadClick?.(lead)} />
     )
   }
 
@@ -164,12 +167,20 @@ export function LeadList({ onLeadClick }: LeadListProps) {
                   Filter zurücksetzen
                 </button>
               )}
-              <button 
-                onClick={() => refetch()}
-                className="text-sm text-gray-500 hover:text-gray-700"
-              >
-                Aktualisieren
-              </button>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => refetch()}
+                  className="text-sm text-gray-500 hover:text-gray-700"
+                >
+                  Aktualisieren
+                </button>
+                <button
+                  onClick={() => setShowNewModal(true)}
+                  className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                >
+                  + Neuer Lead
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -304,5 +315,6 @@ export function LeadList({ onLeadClick }: LeadListProps) {
         </div>
       </div>
     </div>
+    <NewLeadModal isOpen={showNewModal} onClose={() => setShowNewModal(false)} onCreated={(lead)=> onLeadClick?.(lead)} />
   )
 }
