@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { MapContainer, TileLayer } from 'react-leaflet'
+import { MapContainer, TileLayer, useMap } from 'react-leaflet'
+import L from 'leaflet'
 import { useLeads } from '../hooks/useLeads'
 import { LoadingSpinner } from './ui/LoadingSpinner'
 import { ErrorMessage } from './ui/ErrorMessage'
@@ -20,6 +21,18 @@ interface MapViewProps {
   onLeadClick?: (lead: Lead) => void
 }
 
+function AutoFitBounds({ leads, enabled }: { leads: Lead[]; enabled: boolean }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!enabled) return
+    const pts = leads.filter((l) => l.lat && l.lng)
+    if (pts.length === 0) return
+    const bounds = L.latLngBounds(pts.map((l) => [l.lat!, l.lng!] as [number, number]))
+    map.fitBounds(bounds, { padding: [40, 40] })
+  }, [leads, enabled, map])
+  return null
+}
+
 export function MapView({ onLeadClick }: MapViewProps) {
   const { leads, loading, error, refetch } = useLeads()
   const [statusFilter, setStatusFilter] = useState<LeadStatus | null>(null)
@@ -30,6 +43,8 @@ export function MapView({ onLeadClick }: MapViewProps) {
   const [currentTheme, setCurrentTheme] = useState(MAP_THEMES[0])
   const [showHeatmap, setShowHeatmap] = useState(false)
   const [clusteringEnabled, setClusteringEnabled] = useState(true)
+  const [showLabels, setShowLabels] = useState(false)
+  const [autoFit, setAutoFit] = useState(true)
   const [filteredLeads, setFilteredLeads] = useState<Lead[]>([])
 
   useEffect(() => {
@@ -89,9 +104,10 @@ export function MapView({ onLeadClick }: MapViewProps) {
 
   return (
     <div className="relative h-screen flex">
-      {/* Filter Sidebar */}
+      {/* Linke Sidebar: Filter */}
       <MapFilterSidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} leads={leads} onFilteredLeadsChange={setFilteredLeads} />
 
+      {/* Karte */}
       <div className="flex-1 relative">
         <MapContainer
           center={MAP_CONFIG.center}
@@ -108,19 +124,32 @@ export function MapView({ onLeadClick }: MapViewProps) {
           <TileLayer attribution={currentTheme.attribution} url={currentTheme.url} maxZoom={currentTheme.maxZoom || 19} />
 
           {clusteringEnabled ? (
-            <ClusterMarker leads={filteredByStatus} onLeadClick={onLeadClick} />
+            <ClusterMarker leads={filteredByStatus} onLeadClick={onLeadClick} showLabels={showLabels} />
           ) : (
-            filteredByStatus.map((lead) => <LeadMarker key={lead.id} lead={lead} onLeadClick={onLeadClick} />)
+            filteredByStatus.map((lead) => <LeadMarker key={lead.id} lead={lead} onLeadClick={onLeadClick} showLabel={showLabels} />)
           )}
 
-          <MapControls leads={leads} onFilterChange={setStatusFilter} currentFilter={statusFilter} />
+          {/* 1) Filter/Status Controls unten rechts (nur Bounds/Reset anzeigen) */}
+          <MapControls
+            leads={leads}
+            onFilterChange={setStatusFilter}
+            currentFilter={statusFilter}
+            variant="absolute"
+            position="bottom-right"
+            offsetClass="bottom-4"
+            showStatusFilter={false}
+          />
+
+          {/* Heatmap-Layer */}
           <LeadHeatmap leads={filteredByStatus} isVisible={showHeatmap} />
+
+          {/* Auto-Fit Bounds */}
+          <AutoFitBounds leads={filteredByStatus} enabled={autoFit} />
         </MapContainer>
 
-        {/* Top Controls */}
+        {/* 2) Ansicht-Panel rechts oben: Clustering + Heatmap + Theme */}
         <div className="absolute top-4 right-4 z-[1000] space-y-3">
-          <MapThemeSwitcher currentTheme={currentTheme} onThemeChange={setCurrentTheme} />
-          <div className="bg-white rounded-lg shadow-lg p-3 space-y-2">
+          <div className="bg-white rounded-lg shadow-lg p-3 space-y-2 max-w-xs">
             <h4 className="text-sm font-semibold text-gray-700">Ansicht</h4>
             <label className="flex items-center space-x-2 text-sm">
               <input type="checkbox" checked={clusteringEnabled} onChange={(e) => setClusteringEnabled(e.target.checked)} className="rounded" />
@@ -130,7 +159,16 @@ export function MapView({ onLeadClick }: MapViewProps) {
               <input type="checkbox" checked={showHeatmap} onChange={(e) => setShowHeatmap(e.target.checked)} className="rounded" />
               <span>Heatmap</span>
             </label>
+            <label className="flex items-center space-x-2 text-sm">
+              <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} className="rounded" />
+              <span>Namen anzeigen</span>
+            </label>
+            <label className="flex items-center space-x-2 text-sm">
+              <input type="checkbox" checked={autoFit} onChange={(e) => setAutoFit(e.target.checked)} className="rounded" />
+              <span>Auto-Fit</span>
+            </label>
           </div>
+          <MapThemeSwitcher currentTheme={currentTheme} onThemeChange={setCurrentTheme} />
         </div>
 
         {/* Filter Toggle Button (Mobile) */}

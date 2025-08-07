@@ -88,3 +88,13 @@ export const fixLeafletIcons = () => {
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png'
   })
 }
+
+// Liefert eine geeignete Routen-URL (Apple Maps auf iOS, sonst Google Maps)
+export function getDirectionsUrl(lat: number, lng: number, address?: string | null): string {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
+  const destinationLabel = address ? encodeURIComponent(address) : `${lat},${lng}`
+  if (isIOS) {
+    return `https://maps.apple.com/?daddr=${lat},${lng}&q=${destinationLabel}&dirflg=d`
+  }
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=&travelmode=driving`
+}

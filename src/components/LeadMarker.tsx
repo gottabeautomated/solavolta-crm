@@ -1,15 +1,16 @@
 import React from 'react'
 import { Marker, Popup } from 'react-leaflet'
-import { getMarkerIcon } from '../lib/mapUtils'
+import { getMarkerIcon, getDirectionsUrl } from '../lib/mapUtils'
 import { LeadStatusBadge } from './ui/Badge'
 import type { Lead } from '../types/leads'
 
 interface LeadMarkerProps {
   lead: Lead
   onLeadClick?: (lead: Lead) => void
+  showLabel?: boolean
 }
 
-export function LeadMarker({ lead, onLeadClick }: LeadMarkerProps) {
+export function LeadMarker({ lead, onLeadClick, showLabel = false }: LeadMarkerProps) {
   if (!lead.lat || !lead.lng) return null
 
   const position: [number, number] = [lead.lat, lead.lng]
@@ -30,12 +31,25 @@ export function LeadMarker({ lead, onLeadClick }: LeadMarkerProps) {
     onLeadClick?.(lead)
   }
 
+  const handleNavigate = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const url = getDirectionsUrl(lead.lat!, lead.lng!, lead.address)
+    window.open(url, '_blank')
+  }
+
   return (
     <Marker position={position} icon={icon}>
-      <Popup closeButton className="lead-popup" maxWidth={300} minWidth={250}>
+      {showLabel && (
+        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 translate-y-full bg-white bg-opacity-90 text-gray-800 text-xs px-2 py-0.5 rounded shadow pointer-events-none whitespace-nowrap">
+          {(lead.name || 'Unbekannt').slice(0, 22)}
+        </div>
+      )}
+      <Popup closeButton className="lead-popup" maxWidth={320} minWidth={260}>
         <div className="p-2 space-y-3">
           <div className="border-b border-gray-200 pb-2">
-            <h3 className="text-lg font-semibold text-gray-900 mb-1">{lead.name || 'Unbekannter Lead'}</h3>
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-1 truncate">
+              {lead.name || 'Unbekannter Lead'}
+            </h3>
             <div className="flex items-center justify-between">
               <LeadStatusBadge status={lead.lead_status} />
               {lead.follow_up && (
@@ -46,38 +60,28 @@ export function LeadMarker({ lead, onLeadClick }: LeadMarkerProps) {
 
           <div className="space-y-2">
             {lead.phone && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">📞 {lead.phone}</span>
-                <button onClick={handleCallClick} className="text-xs bg-green-600 text-white px-2 py-1 rounded">
-                  Anrufen
-                </button>
-              </div>
+              <button onClick={handleCallClick} className="w-full flex items-center justify-between px-3 py-2 rounded-md border border-gray-200 hover:bg-gray-50 active:bg-gray-100 text-sm" title="Anrufen">
+                <span className="text-gray-700 truncate">📞 {lead.phone}</span>
+                <span className="text-blue-600 font-medium">Anrufen</span>
+              </button>
             )}
             {lead.email && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600 truncate">✉️ {lead.email}</span>
-                <button onClick={handleEmailClick} className="text-xs bg-blue-600 text-white px-2 py-1 rounded">
-                  E-Mail
-                </button>
-              </div>
+              <button onClick={handleEmailClick} className="w-full flex items-center justify-between px-3 py-2 rounded-md border border-gray-200 hover:bg-gray-50 active:bg-gray-100 text-sm" title="E‑Mail senden">
+                <span className="text-gray-700 truncate">✉️ {lead.email}</span>
+                <span className="text-blue-600 font-medium">E‑Mail</span>
+              </button>
             )}
-            {lead.address && <div className="text-sm text-gray-600">📍 {lead.address}</div>}
+            {lead.address && (
+              <div className="px-3 py-2 rounded-md bg-gray-50 text-xs text-gray-600">📍 {lead.address}</div>
+            )}
           </div>
 
-          <div className="text-xs text-gray-500 space-y-1">
-            {lead.contact_type && <div>Kontakttyp: {lead.contact_type}</div>}
-            {lead.appointment_date && (
-              <div>
-                Termin: {new Date(lead.appointment_date).toLocaleDateString('de-DE')}
-                {lead.appointment_time && ` um ${lead.appointment_time}`}
-              </div>
-            )}
-            <div>Erstellt: {new Date(lead.created_at).toLocaleDateString('de-DE')}</div>
-          </div>
-
-          <div className="border-t border-gray-200 pt-2">
-            <button onClick={handleDetailsClick} className="w-full text-sm bg-gray-100 text-gray-700 px-3 py-2 rounded">
-              Details anzeigen
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={handleNavigate} className="w-full text-sm bg-gray-100 text-gray-700 px-3 py-2 rounded hover:bg-gray-200 transition-colors">
+              Navigation
+            </button>
+            <button onClick={handleDetailsClick} className="w-full text-sm bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 transition-colors">
+              Profil öffnen
             </button>
           </div>
         </div>
