@@ -6,6 +6,7 @@ import { Card, CardSection } from './ui/Card'
 import { IconButton } from './ui/IconButton'
 import { LeadStatusBadge, Badge } from './ui/Badge'
 import { LeadForm } from './forms/LeadForm'
+import { GeocodingButton } from './GeocodingButton'
 import { StatusHistory } from './status/StatusHistory'
 import type { Lead } from '../types/leads'
 
@@ -248,6 +249,11 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
                   <div>
                     <label className="text-sm font-medium text-gray-500">Adresse</label>
                     <p className="text-sm text-gray-900">{lead.address || '-'}</p>
+                    {lead.address && (!lead.lat || !lead.lng) && (
+                      <div className="mt-2">
+                        <GeocodingButton lead={lead} variant="primary" size="sm" />
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardSection>
