@@ -5,9 +5,10 @@ interface BadgeProps {
   variant: 'status' | 'contact' | 'phone' | 'success' | 'warning' | 'error' | 'default'
   children: React.ReactNode
   size?: 'sm' | 'md'
+  className?: string
 }
 
-export function Badge({ variant, children, size = 'sm' }: BadgeProps) {
+export function Badge({ variant, children, size = 'sm', className = '' }: BadgeProps) {
   const baseClasses = 'inline-flex items-center rounded-full font-medium'
   
   const sizeClasses = {
@@ -26,7 +27,7 @@ export function Badge({ variant, children, size = 'sm' }: BadgeProps) {
   }
 
   return (
-    <span className={`${baseClasses} ${sizeClasses[size]} ${variantClasses[variant]}`}>
+    <span className={`${baseClasses} ${sizeClasses[size]} ${variantClasses[variant]} ${className}`}>
       {children}
     </span>
   )

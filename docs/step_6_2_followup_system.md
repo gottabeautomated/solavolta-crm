@@ -24,6 +24,10 @@ Automatisches Follow-up Reminder System implementieren, das täglich überfälli
 - [ ] Bulk Follow-up Actions
 - [ ] Notification Settings
 
+### Datenimport (manuell)
+- [x] CSV-Import-Dialog in der Leadliste (Feld‑Mapping, Vorschau)
+- [x] SQL: `src/lib/add_sap_fields.sql` (sap_id + Indizes)
+
 ### Termine (mehrere pro Lead)
 - [ ] Tabelle `appointments` + RLS + Indizes
 - [ ] View `lead_next_appointments`

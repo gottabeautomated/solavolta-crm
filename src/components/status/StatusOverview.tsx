@@ -1,15 +1,13 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardSection } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
 import { ErrorMessage } from '../ui/ErrorMessage'
-import { useStatusTracking } from '../../hooks/status/useStatusTracking'
 import { useLeads } from '../../hooks/useLeads'
 import type { StatusStatistics } from '../../types/status'
 
 export function StatusOverview() {
   const { leads } = useLeads()
-  const { getStatusHistory } = useStatusTracking()
   const [statistics, setStatistics] = useState<StatusStatistics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

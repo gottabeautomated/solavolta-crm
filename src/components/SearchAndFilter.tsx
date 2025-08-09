@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { SearchInput } from './ui/SearchInput'
 import { FilterDropdown } from './ui/FilterDropdown'
 import { FilterToggle } from './ui/FilterToggle'

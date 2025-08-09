@@ -1,6 +1,7 @@
 import React from 'react'
 import { useAuthContext } from '../contexts/AuthContext'
-import { Login } from './Login'
+import { LandingPage } from './LandingPage'
+import { Impressum, Datenschutz, AGB } from './LegalPages'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -8,6 +9,13 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuthContext()
+  const [hash, setHash] = React.useState<string>(typeof window !== 'undefined' ? window.location.hash : '')
+
+  React.useEffect(() => {
+    const onHashChange = () => setHash(window.location.hash)
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
 
   // Loading State
   if (loading) {
@@ -21,9 +29,13 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     )
   }
 
-  // Nicht eingeloggt - zeige Login
+  // Nicht eingeloggt – Legal Pages über Hash direkt zugänglich, sonst LandingPage
   if (!user) {
-    return <Login />
+    const h = hash.replace('#/', '')
+    if (h === 'impressum') return <Impressum />
+    if (h === 'datenschutz') return <Datenschutz />
+    if (h === 'agb') return <AGB />
+    return <LandingPage />
   }
 
   // Eingeloggt - zeige geschützte Inhalte

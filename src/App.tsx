@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AuthProvider } from './contexts/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { Layout } from './components/Layout'
@@ -9,8 +9,10 @@ import { GeocodingDebugPanel } from './components/GeocodingDebugPanel'
 import { FollowupDashboard } from './components/FollowupDashboard'
 import { MapView } from './components/MapView'
 import type { Lead } from './types/leads'
+import { Impressum, Datenschutz, AGB } from './components/LegalPages'
+import { CookieConsent } from './components/CookieConsent'
 
-type View = 'list' | 'detail' | 'map' | 'followups'
+type View = 'list' | 'detail' | 'map' | 'followups' | 'impressum' | 'datenschutz' | 'agb'
 
 function Dashboard() {
   const [currentView, setCurrentView] = useState<View>('list')
@@ -41,6 +43,19 @@ function Dashboard() {
     setSelectedLeadId(null)
   }
 
+  // Legal links aus dem Footer (hash-basiert)
+  useEffect(() => {
+    const onHashChange = () => {
+      const h = window.location.hash.replace('#/', '')
+      if (h === 'impressum') setCurrentView('impressum')
+      else if (h === 'datenschutz') setCurrentView('datenschutz')
+      else if (h === 'agb') setCurrentView('agb')
+    }
+    window.addEventListener('hashchange', onHashChange)
+    onHashChange()
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
   return (
     <>
       {currentView === 'list' && (
@@ -49,7 +64,7 @@ function Dashboard() {
             {/* Header mit Map-Button */}
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Lead Dashboard</h1>
+                <h1 className="text-2xl font-bold text-gray-900">BeAutomated × SolaVolta Lead Management System</h1>
                 <p className="text-gray-600">Verwalten Sie Ihre Vertriebskontakte</p>
               </div>
               <button
@@ -111,6 +126,22 @@ function Dashboard() {
           <FollowupDashboard onLeadClick={handleOpenLeadById} />
         </Layout>
       )}
+
+      {currentView === 'impressum' && (
+        <Layout onShowLeads={handleShowLeads} onShowMap={handleShowMap}>
+          <Impressum />
+        </Layout>
+      )}
+      {currentView === 'datenschutz' && (
+        <Layout onShowLeads={handleShowLeads} onShowMap={handleShowMap}>
+          <Datenschutz />
+        </Layout>
+      )}
+      {currentView === 'agb' && (
+        <Layout onShowLeads={handleShowLeads} onShowMap={handleShowMap}>
+          <AGB />
+        </Layout>
+      )}
     </>
   )
 }
@@ -119,7 +150,10 @@ function App() {
   return (
     <AuthProvider>
       <ProtectedRoute>
-        <Dashboard />
+        <>
+          <Dashboard />
+          <CookieConsent />
+        </>
       </ProtectedRoute>
     </AuthProvider>
   )

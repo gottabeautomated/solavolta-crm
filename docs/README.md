@@ -27,16 +27,17 @@ Dieser Ordner enthält die schrittweise Dokumentation für die Entwicklung des L
 - **[Step 5.2: Erweiterte Karten-Features](./step_5_2_enhanced_map_features.md)**
 - **[Step 5.3: Map-Refinements](./step_5_3_map_refinements.md)**
 
-### Step 6: Automationen
+### Step 6: Automationen & Datenimport
 - **[Step 6.1: n8n Geocoding-Workflow](./step_6_1_n8n_geocoding.md)**
 - **[Step 6.2: Follow-up Reminder System](./step_6_2_followup_system.md)**
-- **[Step 6.4: Manueller Lead-Import (CSV)](./manual_import_csv.md)**
+- Manueller Import: In der Leadliste „Leads importieren“ (CSV mit Feld‑Mapping). SQL: `src/lib/add_sap_fields.sql`.
 
 ## 🚀 Quick Start
 
 1. **Projekt-Setup:** Folgen Sie [Step 1.1](./step_1_1_project_setup.md)
 2. **Basis-Konfiguration:** Folgen Sie [Step 1.2](./step_1_2_basic_configuration.md)
 3. **Entwicklungsserver starten:** `npm run dev`
+4. **(Optional) CSV‑Import aktivieren:** `src/lib/add_sap_fields.sql` in Supabase ausführen
 
 ## 📁 Projektstruktur
 
