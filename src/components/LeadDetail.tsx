@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useLeads } from '../hooks/useLeads'
 import { LoadingSpinner } from './ui/LoadingSpinner'
 import { ErrorMessage } from './ui/ErrorMessage'
@@ -7,6 +7,10 @@ import { IconButton } from './ui/IconButton'
 import { LeadStatusBadge, Badge } from './ui/Badge'
 import { LeadForm } from './forms/LeadForm'
 import { GeocodingButton } from './GeocodingButton'
+import { Modal } from './ui/Modal'
+import { AppointmentForm } from './AppointmentForm'
+import { useAppointments } from '../hooks/useAppointments'
+import { getFileUrl } from '../lib/storage'
 import { StatusHistory } from './status/StatusHistory'
 import type { Lead } from '../types/leads'
 
@@ -23,6 +27,16 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false)
+  const { listAppointments } = useAppointments()
+  const [appointments, setAppointments] = useState<any[]>([])
+
+  const loadAppointments = useCallback(async () => {
+    try {
+      const items = await listAppointments(leadId)
+      setAppointments(items)
+    } catch {}
+  }, [leadId, listAppointments])
 
   useEffect(() => {
     const loadLead = async () => {
@@ -41,7 +55,8 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
     }
 
     loadLead()
-  }, [leadId, fetchLead])
+    loadAppointments()
+  }, [leadId, fetchLead, loadAppointments])
 
   if (loading) {
     return <LoadingSpinner text="Lade Lead-Details..." />
@@ -118,6 +133,19 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
     await new Promise((r) => setTimeout(r, 500))
     const { data } = await fetchLead(leadId)
     if (data) setLead(data)
+  }
+
+  const handleAppointmentSuccess = async (result: any) => {
+    setShowAppointmentModal(false)
+    // Optional: Kalender-Link/Terminfelder in Lead schreiben, falls aus Webhook zurückgegeben
+    if (result?.appointment) {
+      const update: Partial<Lead> = {
+        calendar_link: result.appointment.calendar_link,
+      }
+      await handleSave(update)
+    }
+    // Liste der Termine aktualisieren
+    await loadAppointments()
   }
 
   return (
@@ -300,55 +328,51 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
                 </div>
               </CardSection>
 
-              {(lead.appointment_date || lead.appointment_time) && (
-                <CardSection title="Termine">
-                  <div className="grid grid-cols-1 gap-3">
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Termindatum</label>
-                      <p className="text-sm text-gray-900">{formatDate(lead.appointment_date)}</p>
-                    </div>
-                    
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Terminzeit</label>
-                      <p className="text-sm text-gray-900">{lead.appointment_time || '-'}</p>
-                    </div>
-                  </div>
-                </CardSection>
-              )}
+              <CardSection title="Termine">
+                <div className="space-y-2">
+                  {appointments.length === 0 && (
+                    <p className="text-sm text-gray-500">Keine Termine vorhanden.</p>
+                  )}
+                  {appointments.length > 0 && (
+                    <ul className="divide-y divide-gray-100 border rounded">
+                      {appointments.map((a) => (
+                        <li key={a.id} className="p-2 text-sm flex items-center justify-between">
+                          <span>
+                            {new Date(a.starts_at).toLocaleString('de-DE')} {a.status ? `— ${a.status}` : ''}
+                          </span>
+                          {a.calendar_link && (
+                            <a href={a.calendar_link} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-700">Kalender</a>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </CardSection>
+
+              <CardSection title="Termin vereinbaren">
+                <button
+                  onClick={() => setShowAppointmentModal(true)}
+                  className="inline-flex items-center px-3 py-2 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700"
+                >
+                  📅 Termin vereinbaren
+                </button>
+              </CardSection>
             </Card>
 
             {/* Angebote & Leistungen */}
             <Card title="Angebote & Leistungen">
-              <CardSection title="Angebotsstatus">
-                <div className="grid grid-cols-1 gap-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-500">PV-Angebot</label>
-                    <Badge variant={lead.offer_pv ? 'success' : 'default'} size="sm">
-                      {lead.offer_pv ? 'Erstellt' : 'Nicht erstellt'}
-                    </Badge>
+              <CardSection title="Übersicht">
+                {/* Anzeige aller Offers aus JSON */}
+                {lead.offers && lead.offers.length > 0 ? (
+                  <div className="space-y-2">
+                    {lead.offers.map((o, idx) => (
+                      <OfferRow key={idx} offer={o} />
+                    ))}
                   </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-500">Speicher-Angebot</label>
-                    <Badge variant={lead.offer_storage ? 'success' : 'default'} size="sm">
-                      {lead.offer_storage ? 'Erstellt' : 'Nicht erstellt'}
-                    </Badge>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-500">Notstrom-Angebot</label>
-                    <Badge variant={lead.offer_backup ? 'success' : 'default'} size="sm">
-                      {lead.offer_backup ? 'Erstellt' : 'Nicht erstellt'}
-                    </Badge>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-500">TVP</label>
-                    <Badge variant={lead.tvp ? 'success' : 'default'} size="sm">
-                      {lead.tvp ? 'Erstellt' : 'Nicht erstellt'}
-                    </Badge>
-                  </div>
-                </div>
+                ) : (
+                  <p className="text-sm text-gray-500">Keine Angebote hinterlegt.</p>
+                )}
               </CardSection>
             </Card>
 
@@ -469,6 +493,53 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
           </Card>
         </div>
       )}
+
+      {/* Termin-Modal */}
+      <Modal open={showAppointmentModal} onClose={() => setShowAppointmentModal(false)}>
+        <AppointmentForm
+          leadId={lead.id}
+          leadName={lead.name || 'Unbekannt'}
+          onSuccess={handleAppointmentSuccess}
+          onCancel={() => setShowAppointmentModal(false)}
+        />
+      </Modal>
     </div>
   )
 } 
+
+function OfferRow({ offer }: { offer: any }) {
+  const [url, setUrl] = React.useState<string | null>(null)
+  React.useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      if (offer?.bucket && offer?.storage_path) {
+        const link = await getFileUrl({ bucket: offer.bucket, path: offer.storage_path })
+        if (mounted) setUrl(link)
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [offer?.bucket, offer?.storage_path])
+
+  const label =
+    offer?.type === 'pv' ? 'PV-Angebot' :
+    offer?.type === 'storage' ? 'Speicher-Angebot' :
+    offer?.type === 'emergency' ? 'Notstrom-Angebot' :
+    offer?.type === 'tvp' ? 'TVP' : 'Angebot'
+
+  return (
+    <div className="flex items-center justify-between text-sm p-2 border rounded">
+      <div className="flex items-center gap-2">
+        <span className="font-medium">{label}</span>
+        {offer?.date && <span className="text-gray-500">{new Date(offer.date).toLocaleDateString('de-DE')}</span>}
+        {offer?.number && <span className="text-gray-500">#{offer.number}</span>}
+      </div>
+      <div className="flex items-center gap-3">
+        {url && (
+          <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-700">Ansehen</a>
+        )}
+      </div>
+    </div>
+  )
+}

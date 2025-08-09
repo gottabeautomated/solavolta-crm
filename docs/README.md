@@ -29,6 +29,8 @@ Dieser Ordner enthält die schrittweise Dokumentation für die Entwicklung des L
 
 ### Step 6: Automationen
 - **[Step 6.1: n8n Geocoding-Workflow](./step_6_1_n8n_geocoding.md)**
+- **[Step 6.2: Follow-up Reminder System](./step_6_2_followup_system.md)**
+- **[Step 6.4: Manueller Lead-Import (CSV)](./manual_import_csv.md)**
 
 ## 🚀 Quick Start
 

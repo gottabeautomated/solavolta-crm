@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useLeads } from '../hooks/useLeads'
 import { LoadingSpinner } from './ui/LoadingSpinner'
 import { ErrorMessage } from './ui/ErrorMessage'
@@ -8,6 +8,7 @@ import { NewLeadModal } from './forms/NewLeadModal'
 import { DebugPanel } from './ui/DebugPanel'
 import type { Lead, LeadFilters } from '../types/leads'
 import { useGeocoding } from '../hooks/useGeocoding'
+import { ImportLeadsModal } from './ImportLeadsModal'
 
 interface LeadListProps {
   onLeadClick?: (lead: Lead) => void
@@ -15,9 +16,11 @@ interface LeadListProps {
 
 export function LeadList({ onLeadClick }: LeadListProps) {
   const { leads, loading, error, refetch } = useLeads()
+  const [nextAppointments, setNextAppointments] = useState<Record<string, string | null>>({})
   const { isGeocoding, geocodeMultipleLeads } = useGeocoding()
   const [activeFilters, setActiveFilters] = useState<LeadFilters>({})
   const [showNewModal, setShowNewModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
 
   // Client-side filtering - verhindert API-Calls bei jeder Filter-Änderung
   const filteredLeads = useMemo(() => {
@@ -67,6 +70,26 @@ export function LeadList({ onLeadClick }: LeadListProps) {
       return true
     })
   }, [leads, activeFilters])
+
+  // Optional: nächsten Termin aus View holen, falls vorhanden
+  useEffect(() => {
+    let isMounted = true
+    ;(async () => {
+      try {
+        const { supabase } = await import('../lib/supabase')
+        const { data } = await supabase.from('lead_next_appointments').select('*')
+        if (!isMounted) return
+        const map: Record<string, string | null> = {}
+        ;(data || []).forEach((row: any) => (map[row.lead_id] = row.next_starts_at))
+        setNextAppointments(map)
+      } catch {
+        // optional ignorieren
+      }
+    })()
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   // Filter-Handler - Stable callback
   const handleFiltersChange = React.useCallback((filters: LeadFilters) => {
@@ -173,6 +196,12 @@ export function LeadList({ onLeadClick }: LeadListProps) {
                 </button>
               )}
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="inline-flex items-center px-3 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700"
+                >
+                  Leads importieren
+                </button>
                 <button 
                   onClick={() => refetch()}
                   className="text-sm text-gray-500 hover:text-gray-700"
@@ -223,6 +252,9 @@ export function LeadList({ onLeadClick }: LeadListProps) {
                   Erstellt
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Nächster Termin
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Aktionen
                 </th>
               </tr>
@@ -263,6 +295,11 @@ export function LeadList({ onLeadClick }: LeadListProps) {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(lead.created_at).toLocaleDateString('de-DE')}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {nextAppointments[lead.id]
+                      ? new Date(nextAppointments[lead.id] as string).toLocaleString('de-DE')
+                      : '—'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     {lead.phone && (
@@ -333,6 +370,7 @@ export function LeadList({ onLeadClick }: LeadListProps) {
       </div>
     </div>
     <NewLeadModal isOpen={showNewModal} onClose={() => setShowNewModal(false)} onCreated={(lead)=> onLeadClick?.(lead)} />
+    <ImportLeadsModal open={showImportModal} onClose={() => setShowImportModal(false)} onImported={() => refetch()} />
     </>
   )
 }

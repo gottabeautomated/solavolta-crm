@@ -6,10 +6,11 @@ import { LeadList } from './components/LeadList'
 import { LeadDetail } from './components/LeadDetail'
 import { StatusOverview } from './components/status/StatusOverview'
 import { GeocodingDebugPanel } from './components/GeocodingDebugPanel'
+import { FollowupDashboard } from './components/FollowupDashboard'
 import { MapView } from './components/MapView'
 import type { Lead } from './types/leads'
 
-type View = 'list' | 'detail' | 'map'
+type View = 'list' | 'detail' | 'map' | 'followups'
 
 function Dashboard() {
   const [currentView, setCurrentView] = useState<View>('list')
@@ -17,6 +18,11 @@ function Dashboard() {
 
   const handleLeadClick = (lead: Lead) => {
     setSelectedLeadId(lead.id)
+    setCurrentView('detail')
+  }
+
+  const handleOpenLeadById = (leadId: string) => {
+    setSelectedLeadId(leadId)
     setCurrentView('detail')
   }
 
@@ -56,6 +62,15 @@ function Dashboard() {
                 </svg>
                 Kartenansicht
               </button>
+              <button
+                onClick={() => setCurrentView('followups')}
+                className="inline-flex items-center px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-md hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-colors ml-2"
+              >
+                <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                Follow-ups
+              </button>
             </div>
 
             {/* Status Overview */}
@@ -89,6 +104,12 @@ function Dashboard() {
 
           <MapView onLeadClick={handleLeadClick} />
         </div>
+      )}
+
+      {currentView === 'followups' && (
+        <Layout onShowLeads={handleShowLeads} onShowMap={handleShowMap}>
+          <FollowupDashboard onLeadClick={handleOpenLeadById} />
+        </Layout>
       )}
     </>
   )

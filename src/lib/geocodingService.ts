@@ -11,8 +11,9 @@ export interface GeocodingResult {
 export class GeocodingService {
   private readonly webhookUrl: string
 
-  constructor(webhookUrl: string = 'http://localhost:5678/webhook/geocode-lead') {
-    this.webhookUrl = webhookUrl
+  constructor(webhookUrl?: string) {
+    const envUrl = (import.meta as any)?.env?.VITE_GEOCODING_WEBHOOK_URL as string | undefined
+    this.webhookUrl = webhookUrl || envUrl || 'https://n8n.beautomated.at/webhook/geocode-lead'
   }
 
   async geocodeLead(leadId: string, address: string): Promise<GeocodingResult> {

@@ -11,6 +11,7 @@ interface CheckboxProps {
   offerType?: 'pv' | 'storage' | 'emergency' | 'tvp'
   onOfferChange?: (offers: OfferData[]) => void
   currentOffers?: OfferData[]
+  leadId?: string
 }
 
 const OFFER_TYPES = [
@@ -29,7 +30,8 @@ export function Checkbox({
   showOfferMenu = false,
   offerType,
   onOfferChange,
-  currentOffers = []
+  currentOffers = [],
+  leadId,
 }: CheckboxProps) {
   const [showMenu, setShowMenu] = useState(false)
   const [selectedType, setSelectedType] = useState<string | null>(null)
@@ -87,17 +89,7 @@ export function Checkbox({
     onOfferChange?.(updatedOffers)
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const offerData = {
-        date: new Date().toISOString().split('T')[0],
-        file,
-        fileName: file.name
-      }
-      handleAddOffer(offerData)
-    }
-  }
+  // Upload findet jetzt im OfferInputForm statt (auf Submit), nicht mehr hier
 
   return (
     <div className="space-y-2">
@@ -162,7 +154,7 @@ export function Checkbox({
                 type={selectedType}
                 onAdd={handleAddOffer}
                 onCancel={() => setSelectedType(null)}
-                onFileChange={handleFileChange}
+                 leadId={leadId}
               />
             )}
 
@@ -215,27 +207,33 @@ interface OfferInputFormProps {
   type: string
   onAdd: (data: Omit<OfferData, 'type'>) => void
   onCancel: () => void
-  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  leadId?: string
 }
 
-function OfferInputForm({ type, onAdd, onCancel, onFileChange }: OfferInputFormProps) {
+function OfferInputForm({ type, onAdd, onCancel, leadId }: OfferInputFormProps) {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [number, setNumber] = useState('')
+  const [file, setFile] = useState<File | null>(null)
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    
-         if (type === 'tvp') {
-       // For TVP, trigger file input
-       const fileInput = document.createElement('input')
-       fileInput.type = 'file'
-       fileInput.accept = '.pdf,.doc,.docx'
-       fileInput.onchange = (e) => onFileChange(e as unknown as React.ChangeEvent<HTMLInputElement>)
-       fileInput.click()
-     } else {
-      // For other types, add with date and number
-      onAdd({ date, number: number || undefined })
-    }
+  const handleSubmit = () => {
+    (async () => {
+      let uploaded: { publicUrl?: string; path?: string; bucket?: 'offers' | 'tvp' } = {}
+      if (file) {
+        try {
+          const { uploadOfferPdf } = await import('../../lib/storage')
+          const res = await uploadOfferPdf({ leadId: leadId || 'unknown', offerType: type as any, file })
+          if (res) uploaded = { publicUrl: res.publicUrl, path: res.path, bucket: res.bucket }
+        } catch {}
+      }
+      onAdd({
+        date,
+        number: number || undefined,
+        fileName: uploaded.publicUrl,
+        storage_path: uploaded.path,
+        bucket: uploaded.bucket,
+      })
+      onCancel()
+    })()
   }
 
   const getFormTitle = () => {
@@ -249,7 +247,7 @@ function OfferInputForm({ type, onAdd, onCancel, onFileChange }: OfferInputFormP
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-medium text-gray-900">{getFormTitle()}</h4>
         <button
@@ -261,54 +259,48 @@ function OfferInputForm({ type, onAdd, onCancel, onFileChange }: OfferInputFormP
         </button>
       </div>
 
-      {type !== 'tvp' && (
-        <>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Datum
-            </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-              required
-            />
-          </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-700 mb-1">Datum</label>
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+          required
+        />
+      </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Angebotsnummer (optional)
-            </label>
-            <input
-              type="text"
-              value={number}
-              onChange={(e) => setNumber(e.target.value)}
-              placeholder="z.B. AN-2024-001"
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-        </>
-      )}
+      <div>
+        <label className="block text-xs font-medium text-gray-700 mb-1">Angebotsnummer (optional)</label>
+        <input
+          type="text"
+          value={number}
+          onChange={(e) => setNumber(e.target.value)}
+          placeholder="z.B. AN-2024-001"
+          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+      </div>
 
-      {type === 'tvp' && (
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            TVP-Datei auswählen
-          </label>
-          <input
-            type="file"
-            accept=".pdf,.doc,.docx"
-            onChange={onFileChange}
-            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-            required
-          />
-        </div>
-      )}
+      <div>
+        <label className="block text-xs font-medium text-gray-700 mb-1">
+          {type === 'tvp' ? 'Datei (erforderlich)' : 'Dokument (optional)'}
+        </label>
+        <input
+          type="file"
+          accept="application/pdf"
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+          required={type === 'tvp'}
+        />
+        {type !== 'tvp' && (
+          <p className="mt-1 text-[10px] text-gray-500">PDF optional; wenn gewählt, wird es sicher im Bucket gespeichert.</p>
+        )}
+      </div>
 
       <div className="flex space-x-2 pt-2">
         <button
-          type="submit"
+          type="button"
+          onClick={handleSubmit}
           className="flex-1 px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
         >
           {type === 'tvp' ? 'Datei hochladen' : 'Angebot erstellen'}
@@ -321,6 +313,6 @@ function OfferInputForm({ type, onAdd, onCancel, onFileChange }: OfferInputFormP
           Abbrechen
         </button>
       </div>
-    </form>
+    </div>
   )
 } 

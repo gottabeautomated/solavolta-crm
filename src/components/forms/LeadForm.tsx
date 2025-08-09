@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { FormField } from '../ui/FormField'
 import { Select } from '../ui/Select'
 import { DatePicker } from '../ui/DatePicker'
@@ -29,6 +29,7 @@ interface LeadFormData {
   calendar_link: string
   follow_up: boolean
   follow_up_date: string
+  follow_up_time: string
   exported_to_sap: boolean
   offers: OfferData[]
   // New dynamic fields
@@ -49,6 +50,13 @@ interface LeadFormProps {
 
 export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadFormProps) {
   const [offers, setOffers] = useState<OfferData[]>([])
+
+  // Bestehende Offers des Leads in den lokalen State laden
+  useEffect(() => {
+    if (Array.isArray(lead.offers) && lead.offers.length > 0) {
+      setOffers(lead.offers as OfferData[])
+    }
+  }, [lead.offers])
   const { trackStatusChange } = useStatusTracking()
   
   const validateForm = (values: LeadFormData) => {
@@ -107,6 +115,7 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
       calendar_link: lead.calendar_link || '',
       follow_up: lead.follow_up || false,
       follow_up_date: lead.follow_up_date || '',
+      follow_up_time: lead.next_action_time || '',
       exported_to_sap: lead.exported_to_sap || false,
       offers: [],
       next_action: lead.next_action || '',
@@ -129,6 +138,7 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
          doc_link: values.doc_link || null,
          calendar_link: values.calendar_link || null,
          follow_up_date: values.follow_up_date || null,
+          follow_up_time: values.follow_up_time || null,
                    offers: offers,
          // Neue Felder für "Nächste Aktion"
          next_action: values.next_action || null,
@@ -496,6 +506,7 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
             offerType="pv"
             onOfferChange={setOffers}
             currentOffers={offers}
+            leadId={lead.id}
           />
 
           <Checkbox
@@ -507,6 +518,7 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
             offerType="storage"
             onOfferChange={setOffers}
             currentOffers={offers}
+            leadId={lead.id}
           />
 
           <Checkbox
@@ -518,6 +530,7 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
             offerType="emergency"
             onOfferChange={setOffers}
             currentOffers={offers}
+            leadId={lead.id}
           />
 
           <Checkbox
@@ -529,6 +542,7 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
             offerType="tvp"
             onOfferChange={setOffers}
             currentOffers={offers}
+            leadId={lead.id}
           />
         </div>
       </div>
@@ -566,6 +580,21 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
                 disabled={isSubmitting}
                 error={!!form.errors.follow_up_date}
                 min={new Date().toISOString().split('T')[0]}
+              />
+            </FormField>
+          )}
+
+          {form.values.follow_up && (
+            <FormField
+              label="Follow-up Zeit"
+              error={form.errors.follow_up_time}
+            >
+              <TimePicker
+                value={form.values.follow_up_time}
+                onChange={(value) => form.setValue('follow_up_time', value)}
+                disabled={isSubmitting}
+                error={!!form.errors.follow_up_time}
+                placeholder="Zeit wählen"
               />
             </FormField>
           )}

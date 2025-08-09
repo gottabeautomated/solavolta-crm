@@ -23,7 +23,16 @@ export function ClusterMarker({ leads, onLeadClick, showLabels = false }: Cluste
       animate: true,
       animateAddingMarkers: true,
       disableClusteringAtZoom: 15,
-      maxClusterRadius: 50
+      maxClusterRadius: 50,
+      iconCreateFunction: (cluster: any) => {
+        const count = cluster.getChildCount()
+        const sizeClass = count >= 100 ? 'large' : count >= 10 ? 'medium' : 'small'
+
+        return L.divIcon({
+          html: `<div class="cluster-badge ${sizeClass}"><span class="cluster-count">${count}</span></div>`,
+          className: 'cluster-icon',
+        })
+      },
     })
 
     leads.forEach((lead) => {

@@ -4,7 +4,8 @@ import type {
   Lead, 
   CreateLeadInput, 
   UpdateLeadInput,
-  DatabaseResponse 
+  DatabaseResponse,
+  Appointment 
 } from '../types/leads'
 
 export function useLeads() {
