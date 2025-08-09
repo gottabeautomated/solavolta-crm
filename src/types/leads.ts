@@ -22,9 +22,16 @@ export interface Lead {
   calendar_link: string | null
   follow_up: boolean | null
   follow_up_date: string | null
+  follow_up_time?: string | null
   exported_to_sap: boolean | null
   lat: number | null
   lng: number | null
+  // virtueller Wert für UI, falls Appointments-Tabelle genutzt wird
+  next_appointment_at?: string | null
+  // Geocoding Felder (optional)
+  geocoding_status?: string | null
+  geocoding_error?: string | null
+  geocoded_at?: string | null
   offers?: OfferData[]
   // Neue Felder für "Nächste Aktion"
   next_action?: string | null
@@ -33,6 +40,17 @@ export interface Lead {
   preliminary_offer?: boolean | null
   // Neues Feld für "Verloren" Grund
   lost_reason?: LostReason | null
+}
+
+export interface Appointment {
+  id: string
+  lead_id: string
+  starts_at: string
+  notes?: string | null
+  calendar_link?: string | null
+  external_event_id?: string | null
+  status?: string | null
+  created_at: string
 }
 
 // Enums für bessere Type Safety
@@ -50,6 +68,9 @@ export interface OfferData {
   number?: string
   file?: File
   fileName?: string
+  // Sicheres Speichern: Pfad im privaten Storage + Bucket-Name
+  storage_path?: string
+  bucket?: 'offers' | 'tvp'
 }
 
 // Für Dropdown-Listen

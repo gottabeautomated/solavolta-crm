@@ -55,3 +55,31 @@ body {
     max-width: 280px !important;
   }
 }
+
+/* Cluster badge - hohe Sichtbarkeit */
+.cluster-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.cluster-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: #1f2937; /* gray-800 */
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.9), 0 6px 16px rgba(0, 0, 0, 0.25);
+  border: 2px solid rgba(0,0,0,0.15);
+  text-shadow: 0 1px 0 rgba(0,0,0,0.35);
+}
+
+.cluster-badge.small { width: 36px; height: 36px; }
+.cluster-badge.medium { width: 44px; height: 44px; }
+.cluster-badge.large { width: 56px; height: 56px; }
+
+.cluster-count {
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  font-size: 14px;
+}

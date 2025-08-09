@@ -33,7 +33,7 @@ export function Layout({ children, onShowLeads, onShowMap }: LayoutProps) {
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <h1 className="text-xl font-semibold text-gray-900">Lead Dashboard</h1>
+            <h1 className="text-xl font-semibold text-gray-900">BeAutomated × SolaVolta</h1>
 
             <div className="flex items-center space-x-4">
               {/* Navigation */}
@@ -64,13 +64,13 @@ export function Layout({ children, onShowLeads, onShowMap }: LayoutProps) {
                   variant="ghost"
                   size="sm"
                 />
-                {notifications.filter(n => !n.is_read).length > 0 && (
+                {notifications.filter(n => !n.read).length > 0 && (
                   <Badge
                     variant="warning"
                     size="sm"
                     className="absolute -top-1 -right-1 min-w-[18px] h-[18px] text-xs"
                   >
-                    {notifications.filter(n => !n.is_read).length}
+                    {notifications.filter(n => !n.read).length}
                   </Badge>
                 )}
               </div>
@@ -128,7 +128,7 @@ export function Layout({ children, onShowLeads, onShowMap }: LayoutProps) {
                 {notifications.slice(0, 10).map((notification) => (
                   <div
                     key={notification.id}
-                    className={`p-4 hover:bg-gray-50 cursor-pointer ${!notification.is_read ? 'bg-blue-50' : ''}`}
+                    className={`p-4 hover:bg-gray-50 cursor-pointer ${!notification.read ? 'bg-blue-50' : ''}`}
                     onClick={() => markAsRead(notification.id)}
                   >
                     <div className="flex items-start justify-between">
@@ -138,7 +138,7 @@ export function Layout({ children, onShowLeads, onShowMap }: LayoutProps) {
                           {new Date(notification.created_at).toLocaleString('de-DE')}
                         </p>
                       </div>
-                      {!notification.is_read && <div className="w-2 h-2 bg-blue-600 rounded-full ml-2"></div>}
+                      {!notification.read && <div className="w-2 h-2 bg-blue-600 rounded-full ml-2"></div>}
                     </div>
                   </div>
                 ))}
@@ -150,6 +150,18 @@ export function Layout({ children, onShowLeads, onShowMap }: LayoutProps) {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">{children}</main>
+
+      {/* Footer mit Legal-Links */}
+      <footer className="border-t bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 text-sm text-gray-600 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div>© {new Date().getFullYear()} BeAutomated × SolaVolta</div>
+          <div className="flex items-center gap-4">
+            <a href="#/impressum" className="hover:text-gray-800">Impressum</a>
+            <a href="#/datenschutz" className="hover:text-gray-800">Datenschutz</a>
+            <a href="#/agb" className="hover:text-gray-800">AGB</a>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 } 

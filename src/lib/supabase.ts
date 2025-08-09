@@ -1,9 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Debug: Log all environment variables
-console.log('All env vars:', import.meta.env)
-console.log('VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL)
-console.log('VITE_SUPABASE_ANON_KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY)
+// Nur in der Entwicklung Umgebungsvariablen loggen
+if (import.meta && (import.meta as any).env && (import.meta as any).env.DEV) {
+  // Vorsicht: keine geheimen Keys im Log ausgeben
+  console.log('VITE_SUPABASE_URL:', (import.meta as any).env.VITE_SUPABASE_URL)
+}
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY

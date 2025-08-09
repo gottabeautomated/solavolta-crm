@@ -1,11 +1,14 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useLeads } from '../hooks/useLeads'
 import { LoadingSpinner } from './ui/LoadingSpinner'
 import { ErrorMessage } from './ui/ErrorMessage'
 import { LeadStatusBadge, Badge } from './ui/Badge'
 import { SearchAndFilter } from './SearchAndFilter'
+import { NewLeadModal } from './forms/NewLeadModal'
 import { DebugPanel } from './ui/DebugPanel'
 import type { Lead, LeadFilters } from '../types/leads'
+import { useGeocoding } from '../hooks/useGeocoding'
+import { ImportLeadsModal } from './ImportLeadsModal'
 
 interface LeadListProps {
   onLeadClick?: (lead: Lead) => void
@@ -13,7 +16,11 @@ interface LeadListProps {
 
 export function LeadList({ onLeadClick }: LeadListProps) {
   const { leads, loading, error, refetch } = useLeads()
+  const [nextAppointments, setNextAppointments] = useState<Record<string, string | null>>({})
+  const { isGeocoding, geocodeMultipleLeads } = useGeocoding()
   const [activeFilters, setActiveFilters] = useState<LeadFilters>({})
+  const [showNewModal, setShowNewModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
 
   // Client-side filtering - verhindert API-Calls bei jeder Filter-Änderung
   const filteredLeads = useMemo(() => {
@@ -64,6 +71,26 @@ export function LeadList({ onLeadClick }: LeadListProps) {
     })
   }, [leads, activeFilters])
 
+  // Optional: nächsten Termin aus View holen, falls vorhanden
+  useEffect(() => {
+    let isMounted = true
+    ;(async () => {
+      try {
+        const { supabase } = await import('../lib/supabase')
+        const { data } = await supabase.from('lead_next_appointments').select('*')
+        if (!isMounted) return
+        const map: Record<string, string | null> = {}
+        ;(data || []).forEach((row: any) => (map[row.lead_id] = row.next_starts_at))
+        setNextAppointments(map)
+      } catch {
+        // optional ignorieren
+      }
+    })()
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   // Filter-Handler - Stable callback
   const handleFiltersChange = React.useCallback((filters: LeadFilters) => {
     setActiveFilters(filters)
@@ -85,18 +112,21 @@ export function LeadList({ onLeadClick }: LeadListProps) {
 
   if (!leads || leads.length === 0) {
     return (
-      <div className="text-center py-12">
-        <div className="max-w-md mx-auto">
-          <svg className="h-16 w-16 text-gray-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Keine Leads vorhanden</h3>
-          <p className="text-gray-600 mb-4">Erstellen Sie Ihren ersten Lead.</p>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-            Lead erstellen
-          </button>
+      <>
+        <div className="text-center py-12">
+          <div className="max-w-md mx-auto">
+            <svg className="h-16 w-16 text-gray-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Keine Leads vorhanden</h3>
+            <p className="text-gray-600 mb-4">Erstellen Sie Ihren ersten Lead.</p>
+            <button onClick={() => setShowNewModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+              Lead erstellen
+            </button>
+          </div>
         </div>
-      </div>
+        <NewLeadModal isOpen={showNewModal} onClose={() => setShowNewModal(false)} onCreated={(lead)=> onLeadClick?.(lead)} />
+      </>
     )
   }
 
@@ -140,6 +170,7 @@ export function LeadList({ onLeadClick }: LeadListProps) {
 }
 
   return (
+    <>
     <div className="space-y-6">
       {/* Search and Filter */}
       <SearchAndFilter 
@@ -164,12 +195,38 @@ export function LeadList({ onLeadClick }: LeadListProps) {
                   Filter zurücksetzen
                 </button>
               )}
-              <button 
-                onClick={() => refetch()}
-                className="text-sm text-gray-500 hover:text-gray-700"
-              >
-                Aktualisieren
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="inline-flex items-center px-3 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700"
+                >
+                  Leads importieren
+                </button>
+                <button 
+                  onClick={() => refetch()}
+                  className="text-sm text-gray-500 hover:text-gray-700"
+                >
+                  Aktualisieren
+                </button>
+                <button
+                  onClick={async () => {
+                    const withoutCoords = (leads || []).filter(l => l.address && !l.lat && !l.lng)
+                    if (withoutCoords.length === 0) return
+                    await geocodeMultipleLeads(withoutCoords as Lead[])
+                    await refetch()
+                  }}
+                  disabled={isGeocoding}
+                  className="inline-flex items-center px-3 py-1.5 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  Batch Geocoding
+                </button>
+                <button
+                  onClick={() => setShowNewModal(true)}
+                  className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                >
+                  + Neuer Lead
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -193,6 +250,9 @@ export function LeadList({ onLeadClick }: LeadListProps) {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Erstellt
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Nächster Termin
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Aktionen
@@ -235,6 +295,11 @@ export function LeadList({ onLeadClick }: LeadListProps) {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(lead.created_at).toLocaleDateString('de-DE')}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {nextAppointments[lead.id]
+                      ? new Date(nextAppointments[lead.id] as string).toLocaleString('de-DE')
+                      : '—'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     {lead.phone && (
@@ -304,5 +369,8 @@ export function LeadList({ onLeadClick }: LeadListProps) {
         </div>
       </div>
     </div>
+    <NewLeadModal isOpen={showNewModal} onClose={() => setShowNewModal(false)} onCreated={(lead)=> onLeadClick?.(lead)} />
+    <ImportLeadsModal open={showImportModal} onClose={() => setShowImportModal(false)} onImported={() => refetch()} />
+    </>
   )
 }

@@ -1,7 +1,7 @@
 import React from 'react'
 import { useMapFilters } from '../hooks/useMapFilters'
 import { LEAD_STATUS_OPTIONS } from '../types/leads'
-import type { Lead, LeadStatus } from '../types/leads'
+import type { Lead } from '../types/leads'
 
 interface MapFilterSidebarProps {
   isOpen: boolean
