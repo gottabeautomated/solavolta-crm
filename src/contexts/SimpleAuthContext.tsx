@@ -207,8 +207,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) throw error
         setSession(session)
         setUser(session?.user ?? null)
-        if (session?.user) await loadTenants(session.user)
-        else setMembershipsLoaded(true)
+        if (session?.user) {
+          // Nicht blockieren: Tenants im Hintergrund laden
+          void loadTenants(session.user)
+        } else {
+          setMembershipsLoaded(true)
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Auth-Initialisierung fehlgeschlagen'
         setError(msg)
@@ -221,13 +225,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(s?.user ?? null)
         if (s?.user) {
           // Wenn gleicher User und bereits geladen, nicht erneut triggern
-          if (lastLoadUserIdRef.current === s.user.id && membershipsLoaded) {
-            setLoading(false)
-          } else {
-            await loadTenants(s.user)
+          if (!(lastLoadUserIdRef.current === s.user.id && membershipsLoaded)) {
+            void loadTenants(s.user)
           }
-        }
-        else {
+        } else {
           setTenants([])
           setActiveTenantIdState(null)
           localStorage.removeItem(TENANT_KEY)
@@ -243,22 +244,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Watchdog: verhindert endlosen Spinner bei Netzwerk-/CORS-/Realtime-Issues
   useEffect(() => {
     if (tenantLoading) {
-      // nach 8s abbrechen und UI in Fehlermodus bringen
-      const id = window.setTimeout(() => {
-        if (tenantLoading) {
-          setTenantLoading(false)
-          setMembershipsLoaded(true)
-          if (!error) setError('Zeitüberschreitung beim Laden der Mandanten. Bitte erneut versuchen.')
-          dbg('Watchdog: tenant loading timed out')
+      // Sichtbarkeitsbewusst: in Hintergrund-Tabs nicht aggressiv abbrechen
+      const timeoutMs = 25000
+      const schedule = () => window.setTimeout(() => {
+        if (!tenantLoading) return
+        if (document.visibilityState === 'hidden') {
+          // Im Hintergrund erneut warten
+          if (tenantLoadWatchdogRef.current) window.clearTimeout(tenantLoadWatchdogRef.current)
+          tenantLoadWatchdogRef.current = schedule()
+          return
         }
-      }, 8000)
-      tenantLoadWatchdogRef.current = id
-      return () => { window.clearTimeout(id) }
+        setTenantLoading(false)
+        setMembershipsLoaded(true)
+        if (!error) setError('Zeitüberschreitung beim Laden der Mandanten. Bitte erneut versuchen.')
+        dbg('Watchdog: tenant loading timed out (visible)')
+      }, timeoutMs)
+
+      tenantLoadWatchdogRef.current = schedule()
+      const onVis = () => {
+        if (document.visibilityState === 'visible' && tenantLoading) {
+          // Bei Rückkehr in den Tab einmal sanft neu versuchen
+          retryLoadTenants()
+        }
+      }
+      document.addEventListener('visibilitychange', onVis)
+      return () => {
+        if (tenantLoadWatchdogRef.current) window.clearTimeout(tenantLoadWatchdogRef.current)
+        tenantLoadWatchdogRef.current = null
+        document.removeEventListener('visibilitychange', onVis)
+      }
     } else if (tenantLoadWatchdogRef.current) {
       window.clearTimeout(tenantLoadWatchdogRef.current)
       tenantLoadWatchdogRef.current = null
     }
   }, [tenantLoading])
+
+  // Netzwerk-Recovery: bei Online-Rückkehr sanft neu versuchen
+  useEffect(() => {
+    const onOnline = () => {
+      if (user) {
+        dbg('Network online: retry tenant load')
+        retryLoadTenants()
+      }
+    }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [user])
 
   const signOut = async () => {
     // Zuerst lokal abmelden, dann global versuchen – Fehler ignorieren
