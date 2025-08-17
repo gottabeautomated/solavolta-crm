@@ -63,6 +63,8 @@ export function ImportLeadsModal({ open, onClose, onImported }: ImportLeadsModal
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Nicht eingeloggt')
+      const tenantId = typeof window !== 'undefined' ? window.localStorage.getItem('activeTenantId') : null
+      if (!tenantId) throw new Error('Kein aktiver Mandant gewählt')
 
       let success = 0
       const batch: Partial<Lead>[] = []
@@ -76,6 +78,7 @@ export function ImportLeadsModal({ open, onClose, onImported }: ImportLeadsModal
           sap_id: r[mapping['sap_id']] || null,
           source: 'manual',
           user_id: user.id,
+          tenant_id: tenantId as any,
         } as any
         // Skips leere Zeilen
         if (!lead.name && !lead.phone && !lead.email && !lead.address) continue

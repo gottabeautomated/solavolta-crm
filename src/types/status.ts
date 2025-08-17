@@ -1,6 +1,7 @@
 export interface StatusChange {
   id: string
   lead_id: string
+  tenant_id?: string | null
   old_status: string | null
   new_status: string
   changed_by: string
@@ -22,6 +23,7 @@ export interface Notification {
   id: string
   user_id: string
   lead_id?: string
+  tenant_id?: string | null
   type: 'status_change' | 'follow_up' | 'appointment' | 'system'
   title: string
   message: string
@@ -38,3 +40,21 @@ export interface StatusStatistics {
   pending_follow_ups: number
   upcoming_appointments: number
 } 
+
+// Enhanced Follow Ups for Daily Dashboard
+export type EnhancedFollowUpType = 'call' | 'offer_followup' | 'meeting' | 'custom'
+export type EnhancedFollowUpPriority = 'low' | 'medium' | 'high' | 'overdue'
+
+export interface EnhancedFollowUp {
+  id: string
+  lead_id: string
+  tenant_id: string
+  type: EnhancedFollowUpType
+  due_date: string
+  priority: EnhancedFollowUpPriority
+  auto_generated: boolean
+  escalation_level: number
+  completed_at?: string | null
+  notes?: string | null
+  created_at: string
+}

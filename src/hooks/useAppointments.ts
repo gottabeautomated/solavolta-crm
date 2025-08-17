@@ -30,19 +30,25 @@ export function useAppointments() {
 
   // Termine lesen (memoisiert, stabile Referenzen)
   const listAppointments = useCallback(async (leadId: string): Promise<Appointment[]> => {
+    const tenantId = typeof window !== 'undefined' ? window.localStorage.getItem('activeTenantId') : null
+    if (!tenantId) return []
     const { data } = await supabase
       .from('appointments')
       .select('*')
       .eq('lead_id', leadId)
+      .eq('tenant_id', tenantId as any)
       .order('starts_at', { ascending: true })
     return data || []
   }, [])
 
   const getNextAppointment = useCallback(async (leadId: string): Promise<Appointment | null> => {
+    const tenantId = typeof window !== 'undefined' ? window.localStorage.getItem('activeTenantId') : null
+    if (!tenantId) return null
     const { data } = await supabase
       .from('appointments')
       .select('*')
       .eq('lead_id', leadId)
+      .eq('tenant_id', tenantId as any)
       .gte('starts_at', new Date().toISOString())
       .order('starts_at', { ascending: true })
       .limit(1)

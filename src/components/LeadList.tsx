@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useLeads } from '../hooks/useLeads'
-import { LoadingSpinner } from './ui/LoadingSpinner'
+// import { LoadingSpinner } from './ui/LoadingSpinner'
+import { LeadListSkeleton } from './ui/LoadingStates'
 import { ErrorMessage } from './ui/ErrorMessage'
 import { LeadStatusBadge, Badge } from './ui/Badge'
 import { SearchAndFilter } from './SearchAndFilter'
@@ -97,7 +98,7 @@ export function LeadList({ onLeadClick }: LeadListProps) {
   }, [])
 
   if (loading) {
-    return <LoadingSpinner text="Lade Leads..." />
+    return <LeadListSkeleton rows={10} />
   }
 
   if (error) {

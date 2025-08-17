@@ -199,14 +199,7 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
 
   const nextActionOptions = getNextActionOptions()
   
-  // Debug logging
-  console.log('=== LEAD FORM DEBUG ===')
-  console.log('Current phone_status:', form.values.phone_status)
-  console.log('Phone status type:', typeof form.values.phone_status)
-  console.log('Is phone_status === "erreicht":', form.values.phone_status === 'erreicht')
-  console.log('Next action options:', nextActionOptions)
-  console.log('Should show next action section:', nextActionOptions.length > 0)
-  console.log('========================')
+  // Debug logging entfernt
 
   return (
     <form onSubmit={form.handleSubmit} className="space-y-6">
@@ -341,18 +334,14 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
                          <Select
                value={form.values.phone_status}
                onChange={(value) => {
-                 console.log('=== PHONE STATUS ONCHANGE DEBUG ===')
-                 console.log('Selected phone_status:', value)
-                 
-                 form.setValue('phone_status', value as PhoneStatus)
-                 
-                 // Reset next action when phone status changes
-                 form.setValue('next_action', '')
-                 form.setValue('next_action_date', '')
-                 form.setValue('next_action_time', '')
-                 
-                 console.log('================================')
-               }}
+                form.setValue('phone_status', value as PhoneStatus)
+                
+                // Reset next action when phone status changes
+                form.setValue('next_action', '')
+                form.setValue('next_action_date', '')
+                form.setValue('next_action_time', '')
+                
+              }}
                options={phoneStatusOptions}
                disabled={isSubmitting}
                error={!!form.errors.phone_status}
