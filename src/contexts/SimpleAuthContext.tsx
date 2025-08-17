@@ -41,6 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isLoadingRef = useRef(false)
   const lastLoadUserIdRef = useRef<string | null>(null)
   const lastLoadAtRef = useRef<number>(0)
+  const tenantLoadWatchdogRef = useRef<number | null>(null)
 
   // Debug helper
   const dbg = (...args: unknown[]) => { if (import.meta.env.DEV) console.log('[Auth]', ...args) }
@@ -76,6 +77,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setTenantLoading(true)
     setError(null)
     try {
+      // Sicherstellen, dass ein gültiges Session-Token vorhanden ist
+      let s = (await supabase.auth.getSession()).data.session
+      if (!s) {
+        await new Promise(r => setTimeout(r, 300))
+        s = (await supabase.auth.getSession()).data.session
+      }
       // Eingehende Einladungen automatisch annehmen (essentieller Onboarding-Schritt)
       try {
         await supabase.rpc('accept_invitations_for_current_user')
@@ -86,11 +93,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       dbg('Lade Tenants für', currentUser.id)
       // Schritt 1: Memberships ohne Join (robust gegen fehlende/mehrdeutige FK-Constraints)
-      const { data: memberships, error: membErr } = await supabase
+      let { data: memberships, error: membErr } = await supabase
         .from('memberships')
         .select('tenant_id, role')
         .eq('user_id', currentUser.id)
-      if (membErr) throw membErr
+      if (membErr) {
+        // Einmaliges Refresh+Retry bei 401/403
+        const msg0 = (membErr as any)?.message || ''
+        const details0 = (membErr as any)?.details || ''
+        const isAuth0 = /jwt|expired|invalid|permission|rls|401|403/i.test(msg0 + ' ' + details0)
+        if (isAuth0) {
+          try { await supabase.auth.refreshSession() } catch {}
+          await new Promise(r => setTimeout(r, 250))
+          const retry = await supabase
+            .from('memberships')
+            .select('tenant_id, role')
+            .eq('user_id', currentUser.id)
+          memberships = retry.data as any
+          membErr = retry.error as any
+        }
+      }
+      if (membErr) {
+        // Häufige Fälle: 401/403 (Session abgelaufen / RLS), niemals hängen bleiben
+        const msg = (membErr as any)?.message || ''
+        const details = (membErr as any)?.details || ''
+        const isAuthProblem = /jwt|expired|invalid|permission|rls|401|403/i.test(msg + ' ' + details)
+        if (isAuthProblem) {
+          dberr('memberships unauthorized/forbidden', membErr)
+          // Lokalen Zustand bereinigen; signOut triggert zusätzlich serverseitig
+          try { await supabase.auth.signOut() } catch {}
+          setSession(null)
+          setUser(null)
+          setTenants([])
+          setActiveTenantIdState(null)
+          localStorage.removeItem(TENANT_KEY)
+          setMembershipsLoaded(true)
+          setTenantLoading(false)
+          return
+        }
+        throw membErr
+      }
       const tenantIds = (memberships || []).map((m: any) => m.tenant_id).filter(Boolean)
       // Schritt 2: Tenants separat laden
       const { data: tenantsRows, error: tenErr } = tenantIds.length > 0
@@ -198,9 +240,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => { if (unsub) unsub() }
   }, [])
 
+  // Watchdog: verhindert endlosen Spinner bei Netzwerk-/CORS-/Realtime-Issues
+  useEffect(() => {
+    if (tenantLoading) {
+      // nach 8s abbrechen und UI in Fehlermodus bringen
+      const id = window.setTimeout(() => {
+        if (tenantLoading) {
+          setTenantLoading(false)
+          setMembershipsLoaded(true)
+          if (!error) setError('Zeitüberschreitung beim Laden der Mandanten. Bitte erneut versuchen.')
+          dbg('Watchdog: tenant loading timed out')
+        }
+      }, 8000)
+      tenantLoadWatchdogRef.current = id
+      return () => { window.clearTimeout(id) }
+    } else if (tenantLoadWatchdogRef.current) {
+      window.clearTimeout(tenantLoadWatchdogRef.current)
+      tenantLoadWatchdogRef.current = null
+    }
+  }, [tenantLoading])
+
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
+    // Zuerst lokal abmelden, dann global versuchen – Fehler ignorieren
+    try { await supabase.auth.signOut({ scope: 'local' } as any) } catch {}
+    try { await supabase.auth.signOut({ scope: 'global' } as any) } catch {}
+    // Lokalen State sofort zurücksetzen, nicht auf onAuthStateChange warten
+    setSession(null)
+    setUser(null)
     setTenants([])
     setActiveTenantIdState(null)
     localStorage.removeItem(TENANT_KEY)
