@@ -21,7 +21,7 @@ export function LoginForm() {
       if (error) {
         setError(error.message)
       } else {
-        console.log('Login erfolgreich:', data.user)
+        if (import.meta.env.DEV) console.log('Login erfolgreich:', data.user)
       }
     } catch (err) {
       setError('Ein unerwarteter Fehler ist aufgetreten')

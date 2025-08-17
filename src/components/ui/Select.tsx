@@ -22,22 +22,12 @@ export function Select({
   disabled = false,
   error = false
 }: SelectProps) {
-  console.log('=== SELECT RENDER DEBUG ===')
-  console.log('Select component rendering')
-  console.log('Value:', value)
-  console.log('Options:', options)
-  console.log('Options details:', options.map(opt => `${opt.value} -> ${opt.label}`))
-  console.log('Disabled:', disabled)
-  console.log('============================')
+  // debug logs entfernt
   return (
     <select
       value={value}
       onChange={(e) => {
-        console.log('=== SELECT COMPONENT DEBUG ===')
-        console.log('Select onChange triggered')
-        console.log('Event target value:', e.target.value)
-        console.log('Current value prop:', value)
-        console.log('================================')
+        // debug logs entfernt
         onChange(e.target.value)
       }}
       disabled={disabled}

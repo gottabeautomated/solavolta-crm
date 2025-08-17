@@ -35,7 +35,7 @@ export class GeocodingService {
 
       return await response.json()
     } catch (error) {
-      console.error('Geocoding failed:', error)
+      if (import.meta.env.DEV) console.error('Geocoding failed:', error)
       return {
         success: false,
         lead_id: leadId,

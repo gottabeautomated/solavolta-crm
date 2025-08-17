@@ -1,22 +1,32 @@
 import { useEffect, useState } from 'react'
-import { AuthProvider } from './contexts/AuthContext'
+import { AuthProvider } from './contexts/SimpleAuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { AppStartup } from './components/AppStartup'
 import { Layout } from './components/Layout'
 import { LeadList } from './components/LeadList'
 import { LeadDetail } from './components/LeadDetail'
-import { StatusOverview } from './components/status/StatusOverview'
-import { GeocodingDebugPanel } from './components/GeocodingDebugPanel'
+// import { StatusOverview } from './components/status/StatusOverview'
+// import { GeocodingDebugPanel } from './components/GeocodingDebugPanel'
 import { FollowupDashboard } from './components/FollowupDashboard'
+import { EnhancedFollowUpsPanel } from './components/EnhancedFollowUpsPanel'
+import { EnhancedFollowUpForm } from './components/EnhancedFollowUpForm'
+import { useEnhancedFollowUps } from './hooks/useEnhancedFollowUps'
+import { DailyDashboard } from './components/DailyDashboard'
+import { DashboardOverview } from './components/DashboardOverview'
+import { SolaVoltaCalculatorPanel } from './components/SolaVoltaCalculatorPanel'
 import { MapView } from './components/MapView'
 import type { Lead } from './types/leads'
 import { Impressum, Datenschutz, AGB } from './components/LegalPages'
 import { CookieConsent } from './components/CookieConsent'
+import { eventBus } from './lib/eventBus'
 
-type View = 'list' | 'detail' | 'map' | 'followups' | 'impressum' | 'datenschutz' | 'agb'
+type View = 'dashboard' | 'list' | 'detail' | 'map' | 'followups' | 'impressum' | 'datenschutz' | 'agb'
 
 function Dashboard() {
-  const [currentView, setCurrentView] = useState<View>('list')
+  const [currentView, setCurrentView] = useState<View>('dashboard')
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
+  const [showCreateEfu, setShowCreateEfu] = useState(false)
+  const { create, refetch } = useEnhancedFollowUps()
 
   const handleLeadClick = (lead: Lead) => {
     setSelectedLeadId(lead.id)
@@ -38,6 +48,11 @@ function Dashboard() {
     setSelectedLeadId(null)
   }
 
+  const handleShowDashboard = () => {
+    setCurrentView('dashboard')
+    setSelectedLeadId(null)
+  }
+
   const handleShowLeads = () => {
     setCurrentView('list')
     setSelectedLeadId(null)
@@ -52,54 +67,60 @@ function Dashboard() {
       else if (h === 'agb') setCurrentView('agb')
     }
     window.addEventListener('hashchange', onHashChange)
+    const onOpenLead = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { leadId: string; section?: string | null }
+      setSelectedLeadId(detail.leadId)
+      setCurrentView('detail')
+      // TODO: pass section to LeadDetail via props/state if needed
+    }
+    eventBus.addEventListener('open-lead-detail', onOpenLead as EventListener)
     onHashChange()
-    return () => window.removeEventListener('hashchange', onHashChange)
+    return () => { window.removeEventListener('hashchange', onHashChange); eventBus.removeEventListener('open-lead-detail', onOpenLead as EventListener) }
   }, [])
 
   return (
     <>
-      {currentView === 'list' && (
-        <Layout onShowLeads={handleShowLeads} onShowMap={handleShowMap}>
+      {(currentView === 'dashboard' || currentView === 'list') && (
+        <Layout onShowDashboard={handleShowDashboard} onShowLeads={handleShowLeads} onShowMap={handleShowMap} activeView={currentView}>
           <div className="space-y-6">
-            {/* Header mit Map-Button */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">BeAutomated × SolaVolta Lead Management System</h1>
-                <p className="text-gray-600">Verwalten Sie Ihre Vertriebskontakte</p>
-              </div>
-              <button
-                onClick={handleShowMap}
-                className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-              >
-                <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Kartenansicht
-              </button>
-              <button
-                onClick={() => setCurrentView('followups')}
-                className="inline-flex items-center px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-md hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-colors ml-2"
-              >
-                <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                Follow-ups
-              </button>
+            {currentView === 'dashboard' && (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="text-2xl font-bold text-gray-900">Daily Operations</h1>
+                    <p className="text-gray-600">Überblick und schnelle Aktionen</p>
+                  </div>
+                  <button
+                    onClick={() => setCurrentView('followups')}
+                    className="inline-flex items-center px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-md hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-colors"
+                  >
+                    Follow-ups
+                  </button>
+                </div>
+                <DashboardOverview onOpenLead={handleOpenLeadById} />
+                <SolaVoltaCalculatorPanel />
+              </>
+            )}
+
+            {currentView === 'list' && (
+              <>
+                <h2 className="text-xl font-semibold">Leads</h2>
+                <LeadList onLeadClick={handleLeadClick} />
+              </>
+            )}
+            {/* Schlanke Dashboard-Header-Aktionen */}
+            <div className="flex items-center justify-end gap-2">
+              <button onClick={handleShowMap} className="px-3 py-2 text-sm bg-green-600 text-white rounded">Karte</button>
+              <button onClick={() => setCurrentView('followups')} className="px-3 py-2 text-sm bg-amber-600 text-white rounded">Follow-ups</button>
             </div>
 
-            {/* Status Overview */}
-            <StatusOverview />
-
-            {/* Lead Liste */}
-            {import.meta.env.DEV && <GeocodingDebugPanel />}
-            <LeadList onLeadClick={handleLeadClick} />
+            {/* Status-Kacheln optional ausgeblendet; Leads entfallen auf Dashboard */}
           </div>
         </Layout>
       )}
 
       {currentView === 'detail' && selectedLeadId && (
-        <Layout onShowLeads={handleShowLeads} onShowMap={handleShowMap}>
+        <Layout onShowDashboard={handleShowDashboard} onShowLeads={handleShowLeads} onShowMap={handleShowMap} activeView="detail">
           <LeadDetail leadId={selectedLeadId} onBack={handleBackToList} />
         </Layout>
       )}
@@ -122,8 +143,37 @@ function Dashboard() {
       )}
 
       {currentView === 'followups' && (
-        <Layout onShowLeads={handleShowLeads} onShowMap={handleShowMap}>
-          <FollowupDashboard onLeadClick={handleOpenLeadById} />
+        <Layout onShowDashboard={handleShowDashboard} onShowLeads={handleShowLeads} onShowMap={handleShowMap} activeView="followups">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-center mb-4">
+              <button
+                onClick={() => setShowCreateEfu(true)}
+                className="inline-flex items-center px-5 py-3 bg-blue-600 text-white text-sm font-semibold rounded-md shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Neues Follow-up
+              </button>
+            </div>
+            {/* Daily Operations Overview */}
+            <div className="mb-6">
+              <DashboardOverview onOpenLead={handleOpenLeadById} />
+            </div>
+          </div>
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-6">
+              <FollowupDashboard onLeadClick={handleOpenLeadById} />
+              <DailyDashboard onOpenLead={handleOpenLeadById} />
+            </div>
+            <EnhancedFollowUpsPanel onOpenLead={handleOpenLeadById} />
+          </div>
+          <EnhancedFollowUpForm
+            open={showCreateEfu}
+            onClose={() => setShowCreateEfu(false)}
+            onSave={async (payload) => { await create(payload as any); await refetch() }}
+            initial={null}
+          />
         </Layout>
       )}
 
@@ -148,14 +198,16 @@ function Dashboard() {
 
 function App() {
   return (
-    <AuthProvider>
-      <ProtectedRoute>
-        <>
-          <Dashboard />
-          <CookieConsent />
-        </>
-      </ProtectedRoute>
-    </AuthProvider>
+    <AppStartup>
+      <AuthProvider>
+        <ProtectedRoute>
+          <>
+            <Dashboard />
+            <CookieConsent />
+          </>
+        </ProtectedRoute>
+      </AuthProvider>
+    </AppStartup>
   )
 }
 
