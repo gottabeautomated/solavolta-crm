@@ -31,7 +31,7 @@ export function SnoozeFollowup({ lead, onSnooze }: SnoozeFollowupProps) {
       onSnooze?.(dateStr)
       setShow(false)
     } catch (e) {
-      console.error(e)
+      if (import.meta.env.DEV) console.error(e)
       alert('Fehler beim Verschieben des Follow-ups')
     } finally {
       setIsSnoozing(false)

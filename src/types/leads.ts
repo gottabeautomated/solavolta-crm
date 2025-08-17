@@ -3,6 +3,7 @@ export interface Lead {
   created_at: string
   updated_at?: string
   user_id?: string | null
+  tenant_id?: string | null
   name: string | null
   phone: string | null
   email: string | null
@@ -45,6 +46,7 @@ export interface Lead {
 export interface Appointment {
   id: string
   lead_id: string
+  tenant_id?: string | null
   starts_at: string
   notes?: string | null
   calendar_link?: string | null
