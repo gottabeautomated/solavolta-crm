@@ -19,6 +19,10 @@ export function useStatusTracking() {
 
     try {
       // Status-Änderung in Historie speichern
+      const tenantId = typeof window !== 'undefined' ? window.localStorage.getItem('activeTenantId') : null
+      if (!tenantId) {
+        throw new Error('Kein aktiver Mandant gewählt')
+      }
       const { error: historyError } = await supabase
         .from('status_changes')
         .insert({
@@ -27,7 +31,8 @@ export function useStatusTracking() {
           new_status: newLead.lead_status,
           changed_by: userId,
           reason,
-          notes: `Telefonstatus: ${oldLead.phone_status} → ${newLead.phone_status}`
+          notes: `Telefonstatus: ${oldLead.phone_status} → ${newLead.phone_status}`,
+          tenant_id: tenantId as any
         })
 
       if (historyError) {
@@ -38,6 +43,9 @@ export function useStatusTracking() {
       if (shouldNotifyStatusChange(oldLead, newLead)) {
         await createStatusNotification(leadId, oldLead, newLead, userId)
       }
+
+      // Auto-Followups gemäß Regeln planen
+      await ensureAutomaticFollowUps(leadId, oldLead, newLead)
 
       return { success: true }
     } catch (err) {
@@ -70,6 +78,8 @@ export function useStatusTracking() {
     }
 
     if (message) {
+      const tenantId = typeof window !== 'undefined' ? window.localStorage.getItem('activeTenantId') : null
+      if (!tenantId) return
       await supabase
         .from('notifications')
         .insert({
@@ -78,7 +88,8 @@ export function useStatusTracking() {
           type: 'status_change',
           title,
           message,
-          read: false
+          read: false,
+          tenant_id: tenantId as any
         })
     }
   }, [])
@@ -88,10 +99,15 @@ export function useStatusTracking() {
     setError(null)
 
     try {
+      const tenantId = typeof window !== 'undefined' ? window.localStorage.getItem('activeTenantId') : null
+      if (!tenantId) {
+        throw new Error('Kein aktiver Mandant gewählt')
+      }
       const { data, error } = await supabase
         .from('status_changes')
         .select('*')
         .eq('lead_id', leadId)
+        .eq('tenant_id', tenantId as any)
         .order('changed_at', { ascending: false })
 
       if (error) {
@@ -138,3 +154,88 @@ export function useStatusTracking() {
     error
   }
 } 
+
+// --- Auto Follow-up Logik ---
+async function ensureAutomaticFollowUps(leadId: string, oldLead: Lead, newLead: Lead) {
+  const tenantId = typeof window !== 'undefined' ? window.localStorage.getItem('activeTenantId') : null
+  if (!tenantId) return
+
+  const upsertAuto = async (
+    type: 'call' | 'offer_followup' | 'meeting',
+    dueInDays: number,
+    priority: 'low' | 'medium' | 'high' | 'overdue',
+    note?: string
+  ) => {
+    const due = new Date()
+    due.setDate(due.getDate() + dueInDays)
+    const dueISO = due.toISOString().slice(0, 10)
+    const { data: existing } = await supabase
+      .from('enhanced_follow_ups')
+      .select('id, due_date, priority')
+      .eq('lead_id', leadId)
+      .eq('tenant_id', tenantId as any)
+      .eq('type', type)
+      .eq('auto_generated', true)
+      .is('completed_at', null)
+      .limit(1)
+    const ex = existing && existing[0]
+    if (ex) {
+      const exDate = new Date(ex.due_date as string)
+      if (exDate > due || rank(ex.priority as any) < rank(priority)) {
+        await supabase.from('enhanced_follow_ups').update({ due_date: dueISO, priority }).eq('id', ex.id as string)
+      }
+      return
+    }
+    await supabase.from('enhanced_follow_ups').insert({
+      tenant_id: tenantId as any,
+      lead_id: leadId,
+      type,
+      due_date: dueISO,
+      priority,
+      auto_generated: true,
+      escalation_level: 0,
+      notes: note || null,
+    })
+  }
+
+  const wasOfferSent = (!oldLead.offer_pv && newLead.offer_pv) || (!oldLead.offer_storage && newLead.offer_storage) || (!oldLead.offer_backup && newLead.offer_backup) || (!oldLead.tvp && newLead.tvp)
+  const phoneNotReached = newLead.phone_status === 'keine Antwort' || newLead.phone_status === 'nicht verfügbar'
+  if (phoneNotReached) await upsertAuto('call', 2, 'medium', 'Auto: Nicht erreicht')
+  if (wasOfferSent) await upsertAuto('offer_followup', 7, 'medium', 'Auto: Angebot versandt')
+
+  if (newLead.appointment_date) {
+    try {
+      const dt = new Date(`${newLead.appointment_date}T${newLead.appointment_time || '09:00'}:00`)
+      if (!isNaN(dt.getTime()) && dt < new Date()) await upsertAuto('meeting', 0, 'high', 'Auto: Termin überfällig')
+    } catch {}
+  }
+
+  // Eskalation
+  await escalateAutoFollowUps(leadId, tenantId as any)
+}
+
+function rank(p: 'low' | 'medium' | 'high' | 'overdue') { return p === 'overdue' ? 4 : p === 'high' ? 3 : p === 'medium' ? 2 : 1 }
+
+async function escalateAutoFollowUps(leadId: string, tenantId: string) {
+  const { data: open } = await supabase
+    .from('enhanced_follow_ups')
+    .select('id, due_date, escalation_level, priority')
+    .eq('lead_id', leadId)
+    .eq('tenant_id', tenantId)
+    .eq('auto_generated', true)
+    .is('completed_at', null)
+
+  const today = new Date()
+  for (const fu of open || []) {
+    const due = new Date(fu.due_date as string)
+    const overdueDays = Math.floor((today.getTime() - due.getTime()) / (1000*60*60*24))
+    let lvl = fu.escalation_level as number
+    let prio = fu.priority as 'low' | 'medium' | 'high' | 'overdue'
+    if (overdueDays >= 10 && lvl < 3) { lvl = 3; prio = 'overdue' }
+    else if (overdueDays >= 5 && lvl < 2) { lvl = 2; prio = 'high' }
+    else if (overdueDays >= 2 && lvl < 1) { lvl = 1; prio = 'high' }
+    if (lvl !== fu.escalation_level) {
+      await supabase.from('enhanced_follow_ups').update({ escalation_level: lvl, priority: prio, due_date: new Date().toISOString().slice(0,10) }).eq('id', fu.id as string)
+    }
+  }
+}

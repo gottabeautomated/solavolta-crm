@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useLeads } from '../hooks/useLeads'
-import { LoadingSpinner } from './ui/LoadingSpinner'
+// import { LoadingSpinner } from './ui/LoadingSpinner'
+import { Spinner } from './ui/LoadingStates'
 import { ErrorMessage } from './ui/ErrorMessage'
 import { Card, CardSection } from './ui/Card'
 import { IconButton } from './ui/IconButton'
@@ -9,6 +10,9 @@ import { LeadForm } from './forms/LeadForm'
 import { GeocodingButton } from './GeocodingButton'
 import { Modal } from './ui/Modal'
 import { AppointmentForm } from './AppointmentForm'
+import { OfferWizard } from './OfferWizard'
+import { AssignLeadDialog } from './AssignLeadDialog'
+import { useAuthContext } from '../contexts/AuthContext'
 import { useAppointments } from '../hooks/useAppointments'
 import { getFileUrl } from '../lib/storage'
 import { StatusHistory } from './status/StatusHistory'
@@ -30,6 +34,11 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const { listAppointments } = useAppointments()
   const [appointments, setAppointments] = useState<any[]>([])
+  const [showAssignDialog, setShowAssignDialog] = useState(false)
+  const [showOfferWizard, setShowOfferWizard] = useState(false)
+  const { tenants, activeTenantId } = useAuthContext()
+  const currentRole = React.useMemo(() => tenants.find(t => t.id === activeTenantId)?.role, [tenants, activeTenantId])
+  const canAssign = (currentRole === 'owner' || currentRole === 'admin' || currentRole === 'dispatcher') && tenants.length > 1
 
   const loadAppointments = useCallback(async () => {
     try {
@@ -59,7 +68,11 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
   }, [leadId, fetchLead, loadAppointments])
 
   if (loading) {
-    return <LoadingSpinner text="Lade Lead-Details..." />
+    return (
+      <div className="min-h-[40vh] flex items-center justify-center">
+        <Spinner size={28} text="Lade Lead-Details..." />
+      </div>
+    )
   }
 
   if (error) {
@@ -107,7 +120,7 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
         setTimeout(() => setSaveMessage(null), 3000)
       }
     } catch (error) {
-      console.error('Fehler beim Speichern:', error)
+      if (import.meta.env.DEV) console.error('Fehler beim Speichern:', error)
       setSaveMessage(`Fehler beim Speichern: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`)
     } finally {
       setIsSubmitting(false)
@@ -188,6 +201,22 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
             >
               Bearbeiten
             </IconButton>
+          )}
+          {!isEditing && (
+            <button
+              onClick={() => setShowOfferWizard(true)}
+              className="inline-flex items-center px-3 py-2 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700"
+            >
+              Angebot erstellen
+            </button>
+          )}
+          {!isEditing && canAssign && (
+            <button
+              onClick={() => setShowAssignDialog(true)}
+              className="inline-flex items-center px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+            >
+              Lead zuordnen
+            </button>
           )}
           
           {lead.follow_up && (
@@ -503,6 +532,18 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
           onCancel={() => setShowAppointmentModal(false)}
         />
       </Modal>
+
+      <AssignLeadDialog
+        leadId={lead.id}
+        isOpen={showAssignDialog}
+        onClose={() => setShowAssignDialog(false)}
+        onAssigned={async () => {
+          const { data } = await fetchLead(leadId)
+          if (data) setLead(data)
+        }}
+      />
+
+      <OfferWizard open={showOfferWizard} leadId={lead.id} onClose={() => setShowOfferWizard(false)} />
     </div>
   )
 } 

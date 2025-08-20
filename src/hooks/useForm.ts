@@ -57,7 +57,7 @@ export function useForm<T extends Record<string, any>>({
       await onSubmit(values)
       setIsDirty(false)
     } catch (error) {
-      console.error('Form submission error:', error)
+      if (import.meta.env.DEV) console.error('Form submission error:', error)
     } finally {
       setIsSubmitting(false)
     }

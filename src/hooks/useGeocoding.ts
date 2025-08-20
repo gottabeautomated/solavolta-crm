@@ -54,7 +54,7 @@ export function useGeocoding() {
       setGeocodingResults(results)
       return results
     } catch (error) {
-      console.error('Batch geocoding failed:', error)
+      if (import.meta.env.DEV) console.error('Batch geocoding failed:', error)
       return []
     } finally {
       setIsGeocoding(false)

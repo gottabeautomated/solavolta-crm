@@ -118,7 +118,7 @@ export class FollowupService {
       })
       return response.ok
     } catch (error) {
-      console.error('Failed to trigger follow-up check:', error)
+      if (import.meta.env.DEV) console.error('Failed to trigger follow-up check:', error)
       return false
     }
   }

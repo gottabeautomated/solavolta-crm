@@ -19,19 +19,22 @@ export async function uploadOfferPdf(params: {
   const { data: userData } = await supabase.auth.getUser()
   const userId = userData?.user?.id
   if (!userId) {
-    console.error('Upload failed: no authenticated user')
+    if (import.meta.env.DEV) console.error('Upload failed: no authenticated user')
     return null
   }
   const timestamp = Date.now()
   const safeName = sanitizeFilename(file.name)
-  const path = `user/${userId}/leads/${leadId}/${offerType}/${timestamp}_${safeName}`
+  // Aktiven Tenant aus LocalStorage lesen (wird beim Login gesetzt)
+  const tenantId = typeof window !== 'undefined' ? window.localStorage.getItem('activeTenantId') : null
+  const tenantSeg = tenantId ? `tenant/${tenantId}/` : ''
+  const path = `${tenantSeg}user/${userId}/leads/${leadId}/${offerType}/${timestamp}_${safeName}`
 
   const { error: uploadError } = await supabase.storage.from(bucket).upload(path, file, {
     upsert: false,
     contentType: file.type || 'application/pdf',
   })
   if (uploadError) {
-    console.error('Upload failed:', uploadError)
+    if (import.meta.env.DEV) console.error('Upload failed:', uploadError)
     return null
   }
 
@@ -54,7 +57,7 @@ export async function getFileUrl(params: {
     const { data } = supabase.storage.from(bucket).getPublicUrl(path)
     return data.publicUrl
   } catch (e) {
-    console.error('getFileUrl failed', e)
+    if (import.meta.env.DEV) console.error('getFileUrl failed', e)
     return null
   }
 }
