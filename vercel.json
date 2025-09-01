@@ -1,8 +1,8 @@
 {
   "framework": "vite",
-  "installCommand": "npm ci",
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist"
+  "installCommand": "cd lead-dashboard && npm ci",
+  "buildCommand": "cd lead-dashboard && npm run build",
+  "outputDirectory": "lead-dashboard/dist"
 }
 
 
