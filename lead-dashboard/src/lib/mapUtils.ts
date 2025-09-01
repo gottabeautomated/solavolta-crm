@@ -4,7 +4,7 @@ import L from 'leaflet'
 export const MAP_CONFIG = {
   center: [47.6965, 13.3457] as [number, number], // Zentrum Österreich
   zoom: 7,
-  minZoom: 3,
+  minZoom: 4,
   maxZoom: 18,
   zoomControl: true,
   scrollWheelZoom: true,
@@ -20,7 +20,32 @@ export const isValidCoordinates = (lat: number | null, lng: number | null) =>
   lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)
 
 export function getLeadsWithCoordinates(leads: Lead[]): Lead[] {
-  return leads.filter(lead => isValidCoordinates(lead.lat, lead.lng))
+  if (!Array.isArray(leads) || leads.length === 0) return []
+  const filtered = leads.filter(lead => isValidCoordinates(lead.lat, lead.lng))
+  // harte Obergrenze zur Schonung der UI; feinere Limitierung erfolgt in MapView
+  return filtered.length > 20000 ? filtered.slice(0, 20000) : filtered
+}
+
+// Einheitliche Farbpalette für Status-Dots
+export const STATUS_COLORS: Record<string, string> = {
+  'Neu': '#3b82f6',
+  'Kontaktiert': '#06b6d4',
+  'In Bearbeitung': '#f59e0b',
+  'Termin vereinbart': '#0ea5e9',
+  'Angebot übermittelt': '#a855f7',
+  'In Überlegung': '#10b981',
+  'TVP': '#9333ea',
+  'Gewonnen': '#16a34a',
+  'Verloren': '#ef4444',
+  'Nicht erreicht 1x': '#22c55e',
+  'Nicht erreicht 2x': '#f59e0b',
+  'Nicht erreicht 3x': '#f97316',
+  // Archivierte Marker: neutral grau
+  'Archiviert': '#9ca3af',
+}
+
+export function getStatusColor(status: string): string {
+  return STATUS_COLORS[status] || '#6b7280'
 }
 
 export function getDirectionsUrl(lat: number, lng: number, address?: string): string {
@@ -41,19 +66,24 @@ export function calculateBounds(leads: Lead[]): L.LatLngBounds | null {
 
 // Existing code...
 
-export function getMarkerIcon(status: string): L.DivIcon {
-  const colors: Record<string, string> = {
-    'Neu': '#3b82f6',
-    'Offen': '#10b981',
-    'Gewonnen': '#8b5cf6',
-    'Verloren': '#ef4444',
-    'In Bearbeitung': '#f59e0b'
-  };
-  const color = colors[status] || '#6b7280';
-  
+export function getMarkerIcon(status: string, opts?: { followUp?: boolean; priority?: 'low'|'medium'|'high'|'overdue' }): L.DivIcon {
+  const priorityRings: Record<'low'|'medium'|'high'|'overdue', string> = {
+    low: '#cbd5e1',
+    medium: '#fbbf24',
+    high: '#f59e0b',
+    overdue: '#ef4444',
+  }
+
+  const color = getStatusColor(status)
+  const isArchived = status === 'Archiviert'
+  const ring = opts?.priority ? priorityRings[opts.priority] : (opts?.followUp ? '#fbbf24' : '#ffffff')
+
   return L.divIcon({
     className: 'custom-marker',
-    html: `<div style="background-color:${color};width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.2)"></div>`,
+    html: `<div style="position:relative;width:16px;height:16px">
+      <div style="position:absolute;inset:-4px;border:2px solid ${isArchived ? '#e5e7eb' : ring};border-radius:50%"></div>
+      <div style="position:absolute;inset:0;background-color:${color};width:12px;height:12px;margin:2px;border-radius:50%;border:2px solid white;box-shadow:${isArchived ? 'none' : '0 2px 6px rgba(0,0,0,0.2)'};opacity:${isArchived ? 0.6 : 1}"></div>
+    </div>`,
     iconSize: [16, 16],
     iconAnchor: [8, 8]
   });

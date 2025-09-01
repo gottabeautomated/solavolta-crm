@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useLeads } from '../hooks/useLeads'
+import { supabase } from '../lib/supabase'
 // import { LoadingSpinner } from './ui/LoadingSpinner'
 import { Spinner } from './ui/LoadingStates'
 import { ErrorMessage } from './ui/ErrorMessage'
 import { Card, CardSection } from './ui/Card'
 import { IconButton } from './ui/IconButton'
 import { LeadStatusBadge, Badge } from './ui/Badge'
-import { getAvailableStatuses, isStatusAutoManaged, getStatusLabel } from '../lib/statusUtils'
+// import { getAvailableStatuses, isStatusAutoManaged, getStatusLabel } from '../lib/statusUtils'
 import { LeadForm } from './forms/LeadForm'
 import { GeocodingButton } from './GeocodingButton'
 import { Modal } from './ui/Modal'
@@ -26,7 +27,7 @@ interface LeadDetailProps {
 }
 
 export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
-  const { fetchLead, updateLead } = useLeads()
+  const { fetchLead, updateLead, deleteLead } = useLeads()
   const [lead, setLead] = useState<Lead | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -34,11 +35,12 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
-  const { listAppointments } = useAppointments()
+  const { listAppointments, triggerAppointmentWebhook, deleteAppointment } = useAppointments()
   const [attempts, setAttempts] = useState<any[]>([])
   const [appointments, setAppointments] = useState<any[]>([])
   const [showAssignDialog, setShowAssignDialog] = useState(false)
   const [showOfferWizard, setShowOfferWizard] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const { tenants, activeTenantId } = useAuthContext()
   const currentRole = React.useMemo(() => tenants.find(t => t.id === activeTenantId)?.role, [tenants, activeTenantId])
   const canAssign = (currentRole === 'owner' || currentRole === 'admin' || currentRole === 'dispatcher') && tenants.length > 1
@@ -49,6 +51,22 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
       setAppointments(items)
     } catch {}
   }, [leadId, listAppointments])
+
+  const startAppointmentWorkflow = async (appt: { starts_at: string }) => {
+    try {
+      const d = new Date(appt.starts_at)
+      const dateISO = d.toISOString().slice(0,10)
+      const hh = d.getHours().toString().padStart(2,'0')
+      const mm = d.getMinutes().toString().padStart(2,'0')
+      const time = `${hh}:${mm}`
+      await triggerAppointmentWebhook({
+        lead_id: leadId,
+        appointment_date: dateISO,
+        appointment_time: time,
+        notes: 'Manual workflow trigger from LeadDetail'
+      })
+    } catch {}
+  }
 
   const loadAttempts = useCallback(async () => {
     try {
@@ -173,10 +191,13 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
     if (result?.appointment) {
       const update: Partial<Lead> = {
         calendar_link: result.appointment.calendar_link,
-        // Wenn Termin vereinbart, Status auf "In Bearbeitung" setzen
-        lead_status: 'In Bearbeitung' as any
+        // Termin wurde angelegt → Status "Termin vereinbart" (sofortige UI‑Rückmeldung)
+        lead_status: 'Termin vereinbart' as any
       }
-      await handleSave(update)
+      await handleSave({ ...update, __force_status: 'Termin vereinbart' } as any)
+    } else {
+      // Auch ohne Kalenderdaten: Termin wurde lokal gespeichert → Status direkt setzen
+      await handleSave({ lead_status: 'Termin vereinbart' as any, __force_status: 'Termin vereinbart' } as any)
     }
     // Liste der Termine aktualisieren
     await loadAppointments()
@@ -225,6 +246,17 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
           )}
           {!isEditing && (
             <button
+              onClick={async () => {
+                if (!lead) return
+                await handleSave({ archived: !(lead as any).archived } as any)
+              }}
+              className={`inline-flex items-center px-3 py-2 text-sm rounded ${ (lead as any).archived ? 'bg-gray-200 text-gray-800 hover:bg-gray-300' : 'bg-gray-700 text-white hover:bg-gray-800'}`}
+            >
+              {(lead as any).archived ? 'Aus Archiv holen' : 'Archivieren'}
+            </button>
+          )}
+          {!isEditing && (
+            <button
               onClick={() => setShowOfferWizard(true)}
               className="inline-flex items-center px-3 py-2 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700"
             >
@@ -243,13 +275,21 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
           {lead.follow_up && (
             <Badge variant="warning">Follow-up erforderlich</Badge>
           )}
-                      <LeadStatusBadge status={lead.lead_status} />
+                      <LeadStatusBadge status={lead.lead_status as import('../types/leads').LeadStatus} />
                       {lead.lead_status === 'Verloren' && lead.lost_reason && (
                         <div className="mt-2">
                           <label className="text-sm font-medium text-gray-500">Grund für Verlust</label>
                           <p className="text-sm text-gray-900">{lead.lost_reason}</p>
                         </div>
                       )}
+          {!isEditing && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="inline-flex items-center px-3 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+            >
+              Löschen
+            </button>
+          )}
         </div>
       </div>
 
@@ -290,7 +330,7 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
           <div className="text-sm text-gray-900 space-y-1">
             <div>
               <span className="text-gray-500">Status: </span>
-              <LeadStatusBadge status={lead.lead_status} />
+              <LeadStatusBadge status={lead.lead_status as import('../types/leads').LeadStatus} />
             </div>
             <div>
               <span className="text-gray-500">Telefonstatus: </span>
@@ -300,6 +340,27 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
               <span className="text-gray-500">Nicht erreicht: </span>
               <span>{(lead as any).not_reached_count || 0}x</span>
             </div>
+            {(lead as any).appointment_date && (
+              <div>
+                <span className="text-gray-500">Termin: </span>
+                <span>
+                  {new Date((lead as any).appointment_date).toLocaleDateString('de-DE')}
+                  {lead.appointment_time ? `, ${(lead as any).appointment_time}` : ''}
+                  {(lead as any).appointment_channel ? ` — ${((lead as any).appointment_channel === 'vor_ort') ? 'Vor Ort' : ((lead as any).appointment_channel === 'telefon') ? 'Telefon' : 'Online'}` : ''}
+                  {(lead as any).appointment_completed ? ' (durchgeführt)' : ''}
+                </span>
+              </div>
+            )}
+            {((lead as any).offer_amount || (lead as any).offer_link) && (
+              <div>
+                <span className="text-gray-500">Angebot: </span>
+                <span>
+                  {(lead as any).offer_amount ? `${Number((lead as any).offer_amount).toLocaleString('de-AT', { style: 'currency', currency: 'EUR' })}` : ''}
+                  {((lead as any).offer_amount && (lead as any).offer_link) ? ' • ' : ''}
+                  {(lead as any).offer_link ? <a className="text-blue-600 hover:text-blue-700" href={(lead as any).offer_link} target="_blank" rel="noreferrer">Link</a> : ''}
+                </span>
+              </div>
+            )}
             {lead.follow_up && lead.follow_up_date && (
               <div>
                 <span className="text-gray-500">Nächste Wiedervorlage: </span>
@@ -343,9 +404,9 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
       <Card title="Angebote & Leistungen">
         <CardSection title="Übersicht">
           {/* Anzeige aller Offers aus JSON */}
-          {lead.offers && lead.offers.length > 0 ? (
+          {(lead as any).offers && (lead as any).offers.length > 0 ? (
             <div className="space-y-2">
-              {lead.offers.map((o: OfferData, idx: number) => (
+              {(lead as any).offers.map((o: OfferData, idx: number) => (
                 <OfferRow key={idx} offer={o} />
               ))}
             </div>
@@ -453,7 +514,7 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
                   <div>
                     <label className="text-sm font-medium text-gray-500">Aktueller Status</label>
                     <div className="mt-1">
-                      <LeadStatusBadge status={lead.lead_status} />
+                      <LeadStatusBadge status={lead.lead_status as import('../types/leads').LeadStatus} />
                     </div>
                   </div>
                   
@@ -492,9 +553,26 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
                           <span>
                             {new Date(a.starts_at).toLocaleString('de-DE')} {a.status ? `— ${a.status}` : ''}
                           </span>
-                          {a.calendar_link && (
-                            <a href={a.calendar_link} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-700">Kalender</a>
-                          )}
+                          <div className="flex items-center gap-3">
+                            <button onClick={() => startAppointmentWorkflow(a)} className="text-emerald-600 hover:text-emerald-700">Workflow starten</button>
+                            <button
+                              onClick={async () => {
+                                if (!confirm('Diesen Termin löschen?')) return
+                                const r = await deleteAppointment(a.id)
+                                if (r.success) {
+                                  await loadAppointments()
+                                } else {
+                                  alert(`Löschen fehlgeschlagen: ${r.error}`)
+                                }
+                              }}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              Löschen
+                            </button>
+                            {a.calendar_link && (
+                              <a href={a.calendar_link} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-700">Kalender</a>
+                            )}
+                          </div>
                         </li>
                       ))}
                     </ul>
@@ -516,9 +594,9 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
             <Card title="Angebote & Leistungen">
               <CardSection title="Übersicht">
                 {/* Anzeige aller Offers aus JSON */}
-                {lead.offers && lead.offers.length > 0 ? (
+                {(lead as any).offers && (lead as any).offers.length > 0 ? (
                   <div className="space-y-2">
-                    {lead.offers.map((o: Offer, idx: number) => (
+                    {(lead as any).offers.map((o: OfferData, idx: number) => (
                       <OfferRow key={idx} offer={o} />
                     ))}
                   </div>
@@ -528,24 +606,18 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
               </CardSection>
             </Card>
 
-            {/* Follow-up & Export */}
-            <Card title="Follow-up & Export">
-              <CardSection title="Nachbearbeitung">
+            {/* Wiedervorlagen & Export */}
+            <Card title="Wiedervorlagen & Export">
+              <CardSection title="Wiedervorlagen">
                 <div className="grid grid-cols-1 gap-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-500">Follow-up erforderlich</label>
-                    <Badge variant={lead.follow_up ? 'warning' : 'default'} size="sm">
-                      {lead.follow_up ? 'Ja' : 'Nein'}
-                    </Badge>
+                  <div className="text-sm text-gray-700">
+                    EFUs sind die Quelle der Wahrheit. Dieser Bereich zeigt nur vorhandene Legacy-Felder an, bis die Migration abgeschlossen ist.
                   </div>
-                  
-                  {lead.follow_up_date && (
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Follow-up Datum</label>
-                      <p className="text-sm text-gray-900">{formatDate(lead.follow_up_date)}</p>
-                    </div>
+                  {lead.follow_up_date ? (
+                    <div className="text-sm text-gray-900">Legacy Follow-up: {formatDate(lead.follow_up_date)}</div>
+                  ) : (
+                    <div className="text-sm text-gray-500">Kein Legacy Follow-up gesetzt</div>
                   )}
-                  
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium text-gray-500">SAP-Export</label>
                     <Badge variant={lead.exported_to_sap ? 'success' : 'default'} size="sm">
@@ -567,36 +639,20 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
           )}
 
           {/* Links */}
-          {(lead.doc_link || lead.calendar_link) && (
+          {lead.doc_link && (
             <Card title="Links & Dokumente">
               <div className="grid grid-cols-1 gap-3">
-                {lead.doc_link && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Dokumenten-Link</label>
-                    <a 
-                      href={lead.doc_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-blue-600 hover:text-blue-700 break-all"
-                    >
-                      {lead.doc_link}
-                    </a>
-                  </div>
-                )}
-                
-                {lead.calendar_link && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Kalender-Link</label>
-                    <a 
-                      href={lead.calendar_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-blue-600 hover:text-blue-700 break-all"
-                    >
-                      {lead.calendar_link}
-                    </a>
-                  </div>
-                )}
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Dokumenten-Link</label>
+                  <a 
+                    href={lead.doc_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:text-blue-700 break-all"
+                  >
+                    {lead.doc_link}
+                  </a>
+                </div>
               </div>
             </Card>
           )}
@@ -624,20 +680,20 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
                 <p className="text-sm font-mono text-gray-900">{lead.id}</p>
               </div>
               
-              {(lead.lat && lead.lng) && (
+              {(lead as any).lat && (lead as any).lng && (
                 <div>
                   <label className="text-sm font-medium text-gray-500">Koordinaten</label>
                   <p className="text-sm font-mono text-gray-900">
-                    {lead.lat.toFixed(6)}, {lead.lng.toFixed(6)}
+                    {Number((lead as any).lat).toFixed(6)}, {Number((lead as any).lng).toFixed(6)}
                   </p>
                 </div>
               )}
-              {(!lead.lat || !lead.lng) && (
+              {(!(lead as any).lat || !(lead as any).lng) && (
                 <div>
                   <label className="text-sm font-medium text-gray-500">Geocoding</label>
                   <p className="text-sm text-gray-900">
-                    {lead.geocoding_status || '—'}
-                    {lead.geocoding_error ? ` – ${lead.geocoding_error}` : ''}
+                    {/* Geocoding-Status optional entfernt, da nicht im DB-Typ */}
+                    —
                   </p>
                 </div>
               )}
@@ -667,6 +723,46 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
       />
 
       <OfferWizard open={showOfferWizard} leadId={lead.id} onClose={() => setShowOfferWizard(false)} />
+
+      {/* Delete Confirmation */}
+      <Modal open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}>
+        <div className="p-2">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Lead wirklich löschen?</h3>
+          <p className="text-sm text-gray-600 mb-2">Dieser Vorgang kann nicht rückgängig gemacht werden.</p>
+          {(appointments.length > 0 || (lead as any).offers?.length > 0) && (
+            <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
+              Achtung: Es existieren {appointments.length} Termine und {(lead as any).offers?.length || 0} Angebote. Bitte erneut bestätigen.
+            </div>
+          )}
+          <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              className="px-3 py-2 text-sm rounded border border-gray-200 hover:bg-gray-50"
+            >
+              Abbrechen
+            </button>
+            <button
+              onClick={async () => {
+                const needsSecond = (appointments.length > 0 || (lead as any).offers?.length > 0)
+                if (needsSecond) {
+                  const ok = window.confirm('Es gibt verknüpfte Daten (Termine/Angebote). Wirklich endgültig löschen?')
+                  if (!ok) return
+                }
+                try {
+                  await deleteLead(lead.id)
+                  setShowDeleteConfirm(false)
+                  onBack()
+                } catch (e) {
+                  setShowDeleteConfirm(false)
+                }
+              }}
+              className="px-3 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700"
+            >
+              Endgültig löschen
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 } 
@@ -676,15 +772,16 @@ function OfferRow({ offer }: { offer: OfferData }) {
   React.useEffect(() => {
     let mounted = true
     ;(async () => {
-      if (offer?.bucket && offer?.storage_path) {
-        const link = await getFileUrl({ bucket: offer.bucket, path: offer.storage_path })
+      if (offer?.storage_path) {
+        const bucket: 'offers' | 'tvp' = offer?.type === 'tvp' ? 'tvp' : 'offers'
+        const link = await getFileUrl({ bucket, path: offer.storage_path })
         if (mounted) setUrl(link)
       }
     })()
     return () => {
       mounted = false
     }
-  }, [offer?.bucket, offer?.storage_path])
+  }, [offer?.type, offer?.storage_path])
 
   const label =
     offer?.type === 'pv' ? 'PV-Angebot' :
@@ -698,6 +795,9 @@ function OfferRow({ offer }: { offer: OfferData }) {
         <span className="font-medium">{label}</span>
         {offer?.date && <span className="text-gray-500">{new Date(offer.date).toLocaleDateString('de-DE')}</span>}
         {offer?.number && <span className="text-gray-500">#{offer.number}</span>}
+        {typeof offer?.amount === 'number' && !Number.isNaN(offer.amount) && (
+          <span className="text-gray-700 font-medium">{offer.amount.toLocaleString('de-AT', { style: 'currency', currency: 'EUR' })}</span>
+        )}
       </div>
       <div className="flex items-center gap-3">
         {url && (
@@ -708,9 +808,4 @@ function OfferRow({ offer }: { offer: OfferData }) {
   )
 } 
 
-// Fix for TypeScript error: Type 'string' is not assignable to type '"offers" | "tvp"'
-// This was likely caused by a component expecting specific string literals
-// We're adding a type guard to ensure proper type narrowing
-function isOfferType(type: string): type is OfferData['type'] {
-  return ['pv', 'storage', 'emergency', 'tvp'].includes(type);
-}
+//

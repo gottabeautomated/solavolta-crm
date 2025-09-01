@@ -2,12 +2,13 @@ import React from 'react'
 
 interface IconButtonProps {
   icon: React.ReactNode
-  onClick: () => void
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void
   variant?: 'primary' | 'secondary' | 'ghost'
   size?: 'sm' | 'md' | 'lg'
   disabled?: boolean
   children?: React.ReactNode
   className?: string
+  title?: string
 }
 
 export function IconButton({
@@ -37,6 +38,7 @@ export function IconButton({
     <button
       onClick={onClick}
       disabled={disabled}
+      title={typeof title === 'string' ? title : undefined}
       className={`
         ${baseClasses} 
         ${variantClasses[variant]} 

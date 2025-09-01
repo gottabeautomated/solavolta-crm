@@ -46,6 +46,12 @@ export const LEAD_STATUS_OPTIONS = [
   { value: 'Nicht erreicht 3x', label: 'Nicht erreicht 3x' },
 ];
 
+export const ARCHIVE_FILTER_OPTIONS = [
+  { value: 'exclude_archived', label: 'Ohne Archivierte (Standard)' },
+  { value: 'only_archived', label: 'Nur Archivierte' },
+  { value: 'include_archived', label: 'Archivierte einblenden' },
+];
+
 export const LOST_REASON_OPTIONS = [
   { value: 'andere_firma', label: 'Andere Firma' },
   { value: 'pv_pausiert', label: 'PV pausiert' },
@@ -67,6 +73,7 @@ export interface OfferData {
   number?: string;
   bucket?: string;
   storage_path?: string;
+  amount?: number;
 }
 
 export type ContactType = 'Telefon' | 'Vor Ort' | 'E-Mail'
@@ -78,4 +85,15 @@ export type UpdateLeadInput = Omit<LeadUpdate, 'updated_at'> & { id: string };
 export interface DatabaseResponse<T> {
   data: T | null;
   error: Error | null;
+}
+
+// Filter-Typen für Lead-Listen/Komponenten
+export type LeadFilters = {
+  search?: string
+  status?: LeadStatus | null
+  follow_up?: boolean
+  exported_to_sap?: boolean
+  contact_type?: ContactType | null
+  phone_status?: PhoneStatus | null
+  archivedMode?: 'exclude_archived' | 'only_archived' | 'include_archived'
 }

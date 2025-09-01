@@ -18,15 +18,12 @@ interface LeadFormData {
   lead_status: LeadStatus | ''
   contact_type: ContactType | ''
   phone_status: PhoneStatus | ''
-  appointment_date: string
-  appointment_time: string
   offer_pv: boolean
   offer_storage: boolean
   offer_backup: boolean
   tvp: boolean
   documentation: string
   doc_link: string
-  calendar_link: string
   follow_up: boolean
   follow_up_date: string
   follow_up_time: string
@@ -37,6 +34,8 @@ interface LeadFormData {
   next_action_date: string
   next_action_time: string
   preliminary_offer: boolean
+  offer_amount?: string
+  offer_link?: string
   // New field for lost reason
   lost_reason: LostReason | ''
   // Call attempt tracking / checkboxes
@@ -64,10 +63,11 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
 
   // Bestehende Offers des Leads in den lokalen State laden
   useEffect(() => {
-    if (Array.isArray(lead.offers) && lead.offers.length > 0) {
-      setOffers(lead.offers as OfferData[])
+    const rawOffers = (lead as any).offers
+    if (Array.isArray(rawOffers) && rawOffers.length > 0) {
+      setOffers(rawOffers as OfferData[])
     }
-  }, [lead.offers])
+  }, [(lead as any).offers])
   const { trackStatusChange } = useStatusTracking()
   
   const validateForm = (values: LeadFormData) => {
@@ -89,14 +89,10 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
       errors.follow_up_date = 'Follow-up Datum ist erforderlich wenn Follow-up aktiviert ist'
     }
 
-    // Validate next action fields
+    // Validate next action fields (nur Wiedervorlagen, keine Termine mehr)
     if (values.next_action && values.next_action !== 'note' && !values.next_action_date) {
       errors.next_action_date = 'Datum ist erforderlich für die nächste Aktion'
     }
-
-         if (values.next_action === 'appointment' && !values.next_action_time) {
-       errors.next_action_time = 'Zeit ist erforderlich für einen Termin'
-     }
 
      // Validate lost reason when lead status is "Verloren"
      if (values.lead_status === 'Verloren' && !values.lost_reason) {
@@ -112,79 +108,88 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
       phone: lead.phone || '',
       email: lead.email || '',
       address: lead.address || '',
-      lead_status: lead.lead_status || '',
-      contact_type: lead.contact_type || '',
-      phone_status: lead.phone_status || '',
-      appointment_date: lead.appointment_date || '',
-      appointment_time: lead.appointment_time || '',
+      lead_status: (lead.lead_status as any) || '',
+      contact_type: (lead.contact_type as any) || '',
+      phone_status: (lead.phone_status as any) || '',
       offer_pv: lead.offer_pv || false,
       offer_storage: lead.offer_storage || false,
       offer_backup: lead.offer_backup || false,
       tvp: lead.tvp || false,
       documentation: lead.documentation || '',
       doc_link: lead.doc_link || '',
-      calendar_link: lead.calendar_link || '',
       follow_up: lead.follow_up || false,
       follow_up_date: lead.follow_up_date || '',
-      follow_up_time: lead.next_action_time || '',
+      follow_up_time: (lead as any).next_action_time || '',
       exported_to_sap: lead.exported_to_sap || false,
+      // offers: separate JSON in DB, lokal verwaltet
       offers: [],
-      next_action: lead.next_action || '',
-       next_action_date: lead.next_action_date || '',
-       next_action_time: lead.next_action_time || '',
-       preliminary_offer: lead.preliminary_offer || false,
-       lost_reason: lead.lost_reason || '',
-       voicemail_left: (lead as any).voicemail_left || false,
-       phone_switched_off: (lead as any).phone_switched_off || false,
-       not_reached_count: (lead as any).not_reached_count || 0
-       ,pv_kwp: String((lead as any).pv_kwp || '')
-       ,storage_kwh: String((lead as any).storage_kwh || '')
-       ,has_backup: Boolean((lead as any).has_backup || false)
-       ,has_ev_charger: Boolean((lead as any).has_ev_charger || false)
-       ,has_heating_mgmt: Boolean((lead as any).has_heating_mgmt || false)
-       ,quick_notes: String((lead as any).quick_notes || '')
+      next_action: (lead as any).next_action || '',
+      next_action_date: (lead as any).next_action_date || '',
+      next_action_time: (lead as any).next_action_time || '',
+      preliminary_offer: (lead as any).preliminary_offer || false,
+      lost_reason: (lead.lost_reason as any) || '',
+      voicemail_left: (lead as any).voicemail_left || false,
+      phone_switched_off: (lead as any).phone_switched_off || false,
+      not_reached_count: (lead as any).not_reached_count || 0
+      ,pv_kwp: String((lead as any).pv_kwp || '')
+      ,storage_kwh: String((lead as any).storage_kwh || '')
+      ,has_backup: Boolean((lead as any).has_backup || false)
+      ,has_ev_charger: Boolean((lead as any).has_ev_charger || false)
+      ,has_heating_mgmt: Boolean((lead as any).has_heating_mgmt || false)
+      ,quick_notes: String((lead as any).quick_notes || '')
     },
     validate: validateForm,
     onSubmit: async (values) => {
              // Convert form data to Lead update data
-       const updateData: Partial<Lead> = {
-         ...values,
-         lead_status: values.lead_status || null,
-         contact_type: values.contact_type || null,
-         phone_status: values.phone_status || null,
-         appointment_date: values.appointment_date || null,
-         appointment_time: values.appointment_time || null,
-         documentation: values.documentation || null,
-         doc_link: values.doc_link || null,
-         calendar_link: values.calendar_link || null,
-         follow_up_date: values.follow_up_date || null,
-          follow_up_time: values.follow_up_time || null,
-                   offers: offers,
-         // Neue Felder für "Nächste Aktion"
-         next_action: values.next_action || null,
-         next_action_date: values.next_action_date || null,
-         next_action_time: values.next_action_time || null,
-         preliminary_offer: values.preliminary_offer || false,
-         // Neues Feld für "Verloren" Grund
-         lost_reason: values.lost_reason || null,
-         // Call attempt meta
-         voicemail_left: values.voicemail_left,
-         phone_switched_off: values.phone_switched_off,
-         not_reached_count: values.not_reached_count
-         ,pv_kwp: values.pv_kwp ? Number(values.pv_kwp) : null
-         ,storage_kwh: values.storage_kwh ? Number(values.storage_kwh) : null
-         ,has_backup: values.has_backup
-         ,has_ev_charger: values.has_ev_charger
-         ,has_heating_mgmt: values.has_heating_mgmt
-         ,quick_notes: values.quick_notes || null
-       }
+      const toValidTimeOrNull = (v: any) => {
+        if (typeof v !== 'string') return v ?? null
+        if (v.trim() === '') return null
+        return /^\d{2}:\d{2}$/.test(v) ? v : null
+      }
+      const toValidDateOrNull = (v: any) => {
+        if (typeof v !== 'string') return v ?? null
+        if (v.trim() === '') return null
+        return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null
+      }
+
+      const updateData: Partial<Lead> = {
+        ...values,
+        lead_status: values.lead_status || null,
+        contact_type: values.contact_type || null,
+        phone_status: values.phone_status || null,
+        documentation: values.documentation || null,
+        doc_link: values.doc_link || null,
+        follow_up_date: toValidDateOrNull(values.follow_up_date),
+        // follow_up_time existiert im Lead-DB-Typ nicht → nicht setzen
+        // Angebote als JSON-Array am Lead speichern
+        offers: offers as any,
+        // Neue Felder für "Nächste Aktion"
+        next_action: values.next_action || null,
+        next_action_date: toValidDateOrNull(values.next_action_date),
+        next_action_time: toValidTimeOrNull(values.next_action_time),
+        preliminary_offer: values.preliminary_offer || false,
+        offer_amount: (values as any).offer_amount ? Number((values as any).offer_amount) : null,
+        offer_link: (values as any).offer_link || null,
+        // Neues Feld für "Verloren" Grund
+        lost_reason: values.lost_reason || null,
+        // Call attempt meta
+        voicemail_left: values.voicemail_left,
+        phone_switched_off: values.phone_switched_off,
+        not_reached_count: values.not_reached_count
+        ,pv_kwp: values.pv_kwp ? Number(values.pv_kwp) : null
+        ,storage_kwh: values.storage_kwh ? Number(values.storage_kwh) : null
+        ,has_backup: values.has_backup
+        ,has_ev_charger: values.has_ev_charger
+        ,has_heating_mgmt: values.has_heating_mgmt
+        ,quick_notes: values.quick_notes || null
+      }
+      delete (updateData as any).follow_up_time;
 
       // Status-Änderung tracken wenn sich relevante Felder geändert haben
       const hasStatusChange = 
         lead.lead_status !== values.lead_status ||
         lead.phone_status !== values.phone_status ||
-        lead.follow_up !== values.follow_up ||
-        lead.appointment_date !== values.appointment_date
+        lead.follow_up !== values.follow_up
 
       if (hasStatusChange) {
         const { data: { user } } = await supabase.auth.getUser()
@@ -192,7 +197,7 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
           await trackStatusChange(
             lead.id,
             lead,
-            { ...lead, ...updateData },
+            { ...lead, ...(updateData as any) },
             user.id,
             'Manuelle Bearbeitung'
           )
@@ -200,6 +205,44 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
       }
 
       await onSave(updateData)
+
+      // EFU-Erstellung/Update bei Next-Action
+      try {
+        const tenantId = typeof window !== 'undefined' ? window.localStorage.getItem('activeTenantId') : null
+        if (tenantId && values.next_action && values.next_action_date) {
+          const due = values.next_action_date
+          const type = values.next_action === 'offer' ? 'followup' as any : 'followup' as any
+          // vorhandenes offenes Followup für diesen Lead suchen
+          const { data: existing } = await supabase
+            .from('enhanced_follow_ups')
+            .select('id, completed_at, type, due_date')
+            .eq('tenant_id', tenantId as any)
+            .eq('lead_id', lead.id)
+            .eq('type', type)
+            .is('completed_at', null)
+            .limit(1)
+            .maybeSingle()
+          if (existing?.id) {
+            await supabase
+              .from('enhanced_follow_ups')
+              .update({ due_date: due })
+              .eq('id', existing.id)
+          } else {
+            await supabase
+              .from('enhanced_follow_ups')
+              .insert({
+                tenant_id: tenantId as any,
+                lead_id: lead.id,
+                type,
+                due_date: due,
+                priority: 'medium' as any,
+                auto_generated: false,
+                escalation_level: 0,
+                notes: values.quick_notes || null,
+              })
+          }
+        }
+      } catch {}
 
       // Kontaktversuch automatisch protokollieren
       try {
@@ -228,12 +271,7 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
   const phoneStatusOptions = PHONE_STATUS_OPTIONS
   const lostReasonOptions = LOST_REASON_OPTIONS
 
-  // Auto-Statusauswahlhilfe: Termin -> In Bearbeitung
-  useEffect(() => {
-    if (form.values.appointment_date && form.values.lead_status !== 'In Bearbeitung') {
-      form.setValue('lead_status', 'In Bearbeitung' as LeadStatus)
-    }
-  }, [form.values.appointment_date])
+  // Auto-Statusauswahlhilfe: entfernt (Termine werden über appointments verwaltet)
 
   // Dynamic options based on phone status
   const getNextActionOptions = () => {
@@ -372,6 +410,19 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
             type="button"
             onClick={() => {
               form.setValue('phone_status', 'nicht_erreichbar')
+              // Sofort auf 1x setzen und Follow-up für nächsten Arbeitstag vorbereiten, falls leer
+              const current = Number(form.values.not_reached_count) || 0
+              if (current < 1) form.setValue('not_reached_count', 1)
+              // Lead-Status wird serverseitig in useLeads.ts angepasst; hier nur Follow-up-Vorschlag
+              const today = new Date()
+              const addBusinessDays = (d: Date, days: number) => {
+                const r = new Date(d)
+                let a = 0
+                while (a < days) { r.setDate(r.getDate() + 1); const day = r.getDay(); if (day!==0 && day!==6) a += 1 }
+                return r.toISOString().slice(0,10)
+              }
+              if (!form.values.follow_up) form.setValue('follow_up', true)
+              if (!form.values.follow_up_date) form.setValue('follow_up_date', addBusinessDays(today, 1))
             }}
             className={`px-3 py-1 rounded text-sm border ${form.values.phone_status === 'nicht_erreichbar' ? 'bg-red-100 border-red-300 text-red-800' : 'bg-white border-gray-300 text-gray-700'}`}
             disabled={isSubmitting}
@@ -397,23 +448,23 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
             <div className="flex items-center gap-2 mb-3">
               <button
                 type="button"
-                onClick={() => form.setValue('next_action', 'appointment')}
-                className={`px-3 py-1 rounded text-sm border ${form.values.next_action === 'appointment' ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-white border-gray-300 text-gray-700'}`}
-                disabled={isSubmitting}
-              >
-                📅 Termin
-              </button>
-              <button
-                type="button"
                 onClick={() => form.setValue('next_action', 'offer')}
                 className={`px-3 py-1 rounded text-sm border ${form.values.next_action === 'offer' ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-white border-gray-300 text-gray-700'}`}
                 disabled={isSubmitting}
               >
                 📄 Angebot
               </button>
+              <button
+                type="button"
+                onClick={() => form.setValue('next_action', 'follow_up')}
+                className={`px-3 py-1 rounded text-sm border ${form.values.next_action === 'follow_up' ? 'bg-yellow-100 border-yellow-300 text-yellow-800' : 'bg-white border-gray-300 text-gray-700'}`}
+                disabled={isSubmitting}
+              >
+                ⏰ Wiedervorlage
+              </button>
             </div>
 
-            {form.values.next_action === 'appointment' && (
+            {(form.values.next_action === 'follow_up' || form.values.next_action === 'offer') && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField label="Datum" required error={form.errors.next_action_date}>
                   <DatePicker
@@ -422,15 +473,6 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
                     disabled={isSubmitting}
                     error={!!form.errors.next_action_date}
                     min={new Date().toISOString().split('T')[0]}
-                  />
-                </FormField>
-                <FormField label="Zeit" required error={form.errors.next_action_time}>
-                  <TimePicker
-                    value={form.values.next_action_time}
-                    onChange={(value) => form.setValue('next_action_time', value)}
-                    disabled={isSubmitting}
-                    error={!!form.errors.next_action_time}
-                    placeholder="Zeit wählen"
                   />
                 </FormField>
               </div>
@@ -597,21 +639,7 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
                  </FormField>
                )}
 
-              {form.values.next_action === 'appointment' && (
-                <FormField
-                  label="Zeit"
-                  required
-                  error={form.errors.next_action_time}
-                >
-                  <TimePicker
-                    value={form.values.next_action_time}
-                    onChange={(value) => form.setValue('next_action_time', value)}
-                    disabled={isSubmitting}
-                    error={!!form.errors.next_action_time}
-                    placeholder="Zeit wählen"
-                  />
-                </FormField>
-              )}
+              {/* Für Wiedervorlagen keine Zeit erforderlich */}
             </div>
 
             {/* Preliminary Offer Section for "Angebot" action */}
@@ -659,38 +687,7 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
          </div>
        )}
 
-       {/* Termine */}
-      <div className="bg-gray-50 p-4 rounded-lg">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Termine</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            label="Termindatum"
-            error={form.errors.appointment_date}
-          >
-            <DatePicker
-              value={form.values.appointment_date}
-              onChange={(value) => form.setValue('appointment_date', value)}
-              disabled={isSubmitting}
-              error={!!form.errors.appointment_date}
-              min={new Date().toISOString().split('T')[0]}
-            />
-          </FormField>
-
-          <FormField
-            label="Terminzeit"
-            error={form.errors.appointment_time}
-          >
-            <TimePicker
-              value={form.values.appointment_time}
-              onChange={(value) => form.setValue('appointment_time', value)}
-              disabled={isSubmitting}
-              error={!!form.errors.appointment_time}
-              placeholder="Zeit wählen"
-            />
-          </FormField>
-        </div>
-      </div>
+       {/* Termine werden separat über appointments verwaltet */}
 
       {/* Angebote */}
       <div className="bg-gray-50 p-4 rounded-lg">
@@ -744,6 +741,27 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
             currentOffers={offers}
             leadId={lead.id}
           />
+          <FormField label="Angebotsbetrag (€)">
+            <input
+              type="number"
+              step="0.01"
+              value={form.values.offer_amount || ''}
+              onChange={(e) => form.setValue('offer_amount' as any, e.target.value)}
+              disabled={isSubmitting}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+              placeholder="z.B. 14990.00"
+            />
+          </FormField>
+          <FormField label="Angebotslink">
+            <input
+              type="url"
+              value={form.values.offer_link || ''}
+              onChange={(e) => form.setValue('offer_link' as any, e.target.value)}
+              disabled={isSubmitting}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+              placeholder="https://..."
+            />
+          </FormField>
         </div>
       </div>
 

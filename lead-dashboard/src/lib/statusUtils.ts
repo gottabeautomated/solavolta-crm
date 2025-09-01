@@ -43,3 +43,38 @@ export const getStatusLabel = (status: LeadStatus): string => {
   };
   return labels[status] || status;
 };
+
+// Phase 1: Status-Normalisierung und Kontaktierbarkeit
+export function normalizeStatus(status: unknown): string {
+  if (typeof status !== 'string') return ''
+  return status.toLowerCase().trim().replace(/\s+/g, ' ')
+}
+
+export const CONTACTABLE_STATUSES = new Set([
+  'neu',
+  'nicht erreicht',
+  'nicht erreicht 1x',
+  'nicht erreicht 2x',
+  'nicht erreicht 3x',
+  'zu kontaktieren'
+])
+
+export function isContactableByStatus(lead: Pick<Lead, 'lead_status'> | { lead_status?: any }): boolean {
+  const s = normalizeStatus((lead as any)?.lead_status)
+  if (!s) return false
+  // „nicht erreicht“ ohne Zähler ebenso zulassen
+  if (s.startsWith('nicht erreicht')) return true
+  return CONTACTABLE_STATUSES.has(s)
+}
+
+// Strengerer Ableitungs-Filter für "Heute kontaktieren" (Status-basiert, ohne RLS-Abfrage)
+// - nur "neu" oder "nicht erreicht*"
+// - keine archivierten Leads
+// - keine "verloren"
+export function isDerivedContactCandidate(lead: Partial<Lead> & { lead_status?: any }): boolean {
+  const s = normalizeStatus(lead?.lead_status)
+  if (!(s === 'neu' || s.startsWith('nicht erreicht'))) return false
+  if (normalizeStatus(lead?.lead_status) === 'verloren') return false
+  if ((lead as any)?.archived === true) return false
+  return true
+}

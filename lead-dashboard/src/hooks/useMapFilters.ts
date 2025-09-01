@@ -8,6 +8,7 @@ export interface MapFilters {
   hasOffers: boolean | null
   searchTerm: string
   region: string | null
+  archivedMode: 'exclude_archived' | 'only_archived' | 'include_archived'
 }
 
 const initialFilters: MapFilters = {
@@ -16,7 +17,8 @@ const initialFilters: MapFilters = {
   dateRange: { start: null, end: null },
   hasOffers: null,
   searchTerm: '',
-  region: null
+  region: null,
+  archivedMode: 'exclude_archived'
 }
 
 export function useMapFilters(leads: Lead[]) {
@@ -50,6 +52,12 @@ export function useMapFilters(leads: Lead[]) {
       if (filters.region && lead.address) {
         if (!lead.address.toLowerCase().includes(filters.region.toLowerCase())) return false
       }
+      // Archiv-Filter
+      if (filters.archivedMode === 'exclude_archived') {
+        if ((lead as any).archived) return false
+      } else if (filters.archivedMode === 'only_archived') {
+        if (!(lead as any).archived) return false
+      }
       return true
     })
   }, [leads, filters])
@@ -78,7 +86,8 @@ export function useMapFilters(leads: Lead[]) {
       filters.dateRange.start || filters.dateRange.end,
       filters.hasOffers !== null,
       filters.searchTerm.length > 0,
-      filters.region !== null
+      filters.region !== null,
+      filters.archivedMode !== 'exclude_archived'
     ].filter(Boolean).length
     return { total, filtered, activeFilters }
   }, [leads.length, filteredLeads.length, filters])

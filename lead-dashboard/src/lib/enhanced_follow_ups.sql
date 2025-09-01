@@ -8,6 +8,31 @@ do $$ begin
   if not exists (select 1 from pg_type where typname = 'enhanced_followup_type') then
     create type enhanced_followup_type as enum ('call','offer_followup','meeting','custom');
   end if;
+  -- Fehlende Werte idempotent ergänzen (wird ignoriert, falls vorhanden)
+  if not exists (
+    select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid
+    where t.typname = 'enhanced_followup_type' and e.enumlabel = 'followup'
+  ) then
+    alter type enhanced_followup_type add value if not exists 'followup';
+  end if;
+  if not exists (
+    select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid
+    where t.typname = 'enhanced_followup_type' and e.enumlabel = 'reengagement'
+  ) then
+    alter type enhanced_followup_type add value if not exists 'reengagement';
+  end if;
+  if not exists (
+    select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid
+    where t.typname = 'enhanced_followup_type' and e.enumlabel = 'offer'
+  ) then
+    alter type enhanced_followup_type add value if not exists 'offer';
+  end if;
+  if not exists (
+    select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid
+    where t.typname = 'enhanced_followup_type' and e.enumlabel = 'tvp'
+  ) then
+    alter type enhanced_followup_type add value if not exists 'tvp';
+  end if;
   if not exists (select 1 from pg_type where typname = 'enhanced_followup_priority') then
     create type enhanced_followup_priority as enum ('low','medium','high','overdue');
   end if;

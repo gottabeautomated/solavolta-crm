@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { MapContainer, TileLayer, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { useLeads } from '../hooks/useLeads'
 import { LoadingSpinner } from './ui/LoadingSpinner'
@@ -21,22 +21,11 @@ interface MapViewProps {
   onLeadClick?: (lead: Lead) => void
 }
 
-function AutoFitBounds({ leads, enabled }: { leads: Lead[]; enabled: boolean }) {
-  const map = useMap()
-  useEffect(() => {
-    if (!enabled) return
-    const pts = leads.filter((l) => l.lat && l.lng)
-    if (pts.length === 0) return
-    const bounds = L.latLngBounds(pts.map((l) => [l.lat!, l.lng!] as [number, number]))
-    map.fitBounds(bounds, { padding: [40, 40] })
-  }, [leads, enabled, map])
-  return null
-}
-
 export function MapView({ onLeadClick }: MapViewProps) {
   const { leads, loading, error, refetch } = useLeads()
   const [statusFilter, setStatusFilter] = useState<LeadStatus | null>(null)
   const [mapLoading, setMapLoading] = useState(true)
+  const [tilesLoading, setTilesLoading] = useState(false)
 
   // Erweiterte Feature-States
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -44,12 +33,36 @@ export function MapView({ onLeadClick }: MapViewProps) {
   const [showHeatmap, setShowHeatmap] = useState(false)
   const [clusteringEnabled, setClusteringEnabled] = useState(true)
   const [showLabels, setShowLabels] = useState(false)
-  const [autoFit, setAutoFit] = useState(true)
   const [filteredLeads, setFilteredLeads] = useState<Lead[]>([])
+  const [center, setCenter] = useState<[number, number]>(() => {
+    try {
+      const preferStored = localStorage.getItem('map_user_pref') === '1'
+      if (preferStored) {
+        const s = localStorage.getItem('map_center')
+        if (s) return JSON.parse(s)
+      }
+    } catch {}
+    return MAP_CONFIG.center
+  })
+  const [zoom, setZoom] = useState<number>(() => {
+    try {
+      const preferStored = localStorage.getItem('map_user_pref') === '1'
+      if (preferStored) {
+        const s = localStorage.getItem('map_zoom')
+        if (s) {
+          const z = JSON.parse(s)
+          // harte Kappung: initial nicht näher als Zoom 9 starten
+          return Math.min(Number(z) || MAP_CONFIG.zoom, 9)
+        }
+      }
+    } catch {}
+    return MAP_CONFIG.zoom
+  })
+  const [bbox, setBbox] = useState<null | { minLat: number; maxLat: number; minLng: number; maxLng: number }>(null)
 
   useEffect(() => {
     fixLeafletIcons()
-    const timer = setTimeout(() => setMapLoading(false), 800)
+    const timer = setTimeout(() => setMapLoading(false), 200)
     return () => clearTimeout(timer)
   }, [])
 
@@ -58,10 +71,72 @@ export function MapView({ onLeadClick }: MapViewProps) {
   }, [leads])
 
   const filteredByStatus = useMemo(() => {
+    // Basis: Sidebar-/Suchfilter
     let result = filteredLeads
+    // Viewport-BBOX anwenden, falls vorhanden
+    if (bbox) {
+      const { minLat, maxLat, minLng, maxLng } = bbox
+      result = result.filter(l => (l.lat as any) >= minLat && (l.lat as any) <= maxLat && (l.lng as any) >= minLng && (l.lng as any) <= maxLng)
+    }
+    // Optionaler Statusfilter (MapControls)
     if (statusFilter) result = result.filter((l) => l.lead_status === statusFilter)
-    return result
-  }, [filteredLeads, statusFilter])
+    // Obergrenze für Marker
+    const MAX_MARKERS = 3000
+    return result.slice(0, MAX_MARKERS)
+  }, [filteredLeads, bbox, statusFilter])
+
+  function PersistView() {
+    useMapEvents({
+      load: (e) => {
+        const m = e.target
+        const c = m.getCenter()
+        const z = m.getZoom()
+        setCenter([c.lat, c.lng])
+        setZoom(z)
+        try { localStorage.setItem('map_center', JSON.stringify([c.lat, c.lng])); localStorage.setItem('map_zoom', JSON.stringify(z)) } catch {}
+        const b = m.getBounds()
+        setBbox({ minLat: b.getSouth(), maxLat: b.getNorth(), minLng: b.getWest(), maxLng: b.getEast() })
+      },
+      moveend: (e) => {
+        const m = e.target
+        const c = m.getCenter()
+        const z = m.getZoom()
+        setCenter([c.lat, c.lng])
+        setZoom(z)
+        try {
+          localStorage.setItem('map_center', JSON.stringify([c.lat, c.lng]))
+          localStorage.setItem('map_zoom', JSON.stringify(z))
+          localStorage.setItem('map_user_pref', '1')
+        } catch {}
+        // BBOX speichern (Filter wird in Memo angewandt)
+        const b = m.getBounds()
+        setBbox({ minLat: b.getSouth(), maxLat: b.getNorth(), minLng: b.getWest(), maxLng: b.getEast() })
+      },
+      zoomend: (e) => {
+        const m = e.target
+        const b = m.getBounds()
+        setBbox({ minLat: b.getSouth(), maxLat: b.getNorth(), minLng: b.getWest(), maxLng: b.getEast() })
+      }
+    })
+    return null
+  }
+
+  function ResizeInvalidator({ deps }: { deps: any[] }) {
+    const map = useMap()
+    useEffect(() => {
+      const id = setTimeout(() => {
+        map.invalidateSize()
+      }, 200)
+      return () => clearTimeout(id)
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, deps)
+    useEffect(() => {
+      const onResize = () => map.invalidateSize()
+      window.addEventListener('resize', onResize)
+      return () => window.removeEventListener('resize', onResize)
+    }, [map])
+    return null
+  }
 
   if (loading || mapLoading) {
     return (
@@ -110,23 +185,39 @@ export function MapView({ onLeadClick }: MapViewProps) {
       {/* Karte */}
       <div className="flex-1 relative">
         <MapContainer
-          center={MAP_CONFIG.center}
-          zoom={MAP_CONFIG.zoom}
+          center={center}
+          zoom={zoom}
           minZoom={MAP_CONFIG.minZoom}
           maxZoom={MAP_CONFIG.maxZoom}
           zoomControl={MAP_CONFIG.zoomControl}
           scrollWheelZoom={MAP_CONFIG.scrollWheelZoom}
           doubleClickZoom={MAP_CONFIG.doubleClickZoom}
           dragging={MAP_CONFIG.dragging}
+          preferCanvas={true}
           className="h-full w-full"
           style={{ height: '100vh', width: '100%' }}
         >
-          <TileLayer attribution={currentTheme.attribution} url={currentTheme.url} maxZoom={currentTheme.maxZoom || 19} />
+          <PersistView />
+          <ResizeInvalidator deps={[sidebarOpen, currentTheme.id]} />
+          <TileLayer
+            attribution={currentTheme.attribution}
+            url={currentTheme.url}
+            maxZoom={currentTheme.maxZoom || 19}
+            updateWhenZoom={false}
+            updateWhenIdle={true}
+            keepBuffer={1}
+            detectRetina={false}
+            eventHandlers={{
+              loading: () => setTilesLoading(true),
+              load: () => setTilesLoading(false),
+              tileerror: () => setTilesLoading(false),
+            }}
+          />
 
           {clusteringEnabled ? (
-            <ClusterMarker leads={filteredByStatus} onLeadClick={onLeadClick} showLabels={showLabels} />
+            <ClusterMarker leads={filteredByStatus} onLeadClick={onLeadClick} showLabels={true} />
           ) : (
-            filteredByStatus.map((lead) => <LeadMarker key={lead.id} lead={lead} onLeadClick={onLeadClick} showLabel={showLabels} />)
+            filteredByStatus.map((lead) => <LeadMarker key={lead.id} lead={lead} onLeadClick={onLeadClick} showLabel={true} />)
           )}
 
           {/* 1) Filter/Status Controls unten rechts (nur Bounds/Reset anzeigen) */}
@@ -143,9 +234,20 @@ export function MapView({ onLeadClick }: MapViewProps) {
           {/* Heatmap-Layer */}
           <LeadHeatmap leads={filteredByStatus} isVisible={showHeatmap} />
 
-          {/* Auto-Fit Bounds */}
-          <AutoFitBounds leads={filteredByStatus} enabled={autoFit} />
         </MapContainer>
+
+        {tilesLoading && (
+          <div className="pointer-events-none absolute inset-0 z-[900]">
+            <div className="absolute inset-0 bg-gradient-to-b from-white/60 to-white/20" />
+            <div className="absolute top-4 right-4 bg-white/90 backdrop-blur rounded-md shadow px-3 py-2 text-sm text-gray-700 flex items-center space-x-2">
+              <svg className="animate-spin h-4 w-4 text-blue-600" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+              </svg>
+              <span>Kartenkacheln werden geladen…</span>
+            </div>
+          </div>
+        )}
 
         {/* 2) Ansicht-Panel rechts oben: Clustering + Heatmap + Theme */}
         <div className="absolute top-4 right-4 z-[1000] space-y-3">
@@ -159,20 +261,13 @@ export function MapView({ onLeadClick }: MapViewProps) {
               <input type="checkbox" checked={showHeatmap} onChange={(e) => setShowHeatmap(e.target.checked)} className="rounded" />
               <span>Heatmap</span>
             </label>
-            <label className="flex items-center space-x-2 text-sm">
-              <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} className="rounded" />
-              <span>Namen anzeigen</span>
-            </label>
-            <label className="flex items-center space-x-2 text-sm">
-              <input type="checkbox" checked={autoFit} onChange={(e) => setAutoFit(e.target.checked)} className="rounded" />
-              <span>Auto-Fit</span>
-            </label>
+            {/* Namen sind jetzt immer sichtbar */}
           </div>
           <MapThemeSwitcher currentTheme={currentTheme} onThemeChange={setCurrentTheme} />
         </div>
 
         {/* Filter Toggle Button (Mobile) */}
-        <button onClick={() => setSidebarOpen(true)} className="md:hidden absolute top-4 left-4 z-[1000] bg-white text-gray-700 px-3 py-2 rounded-lg shadow-lg hover:bg-gray-50 transition-colors inline-flex items-center text-sm font-medium">
+        <button onClick={() => setSidebarOpen(true)} className="md:hidden absolute top-4 left-20 z-[1002] bg-white text-gray-700 px-3 py-2 rounded-lg shadow-lg hover:bg-gray-50 transition-colors inline-flex items-center text-sm font-medium">
           <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
           </svg>

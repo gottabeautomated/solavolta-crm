@@ -107,10 +107,10 @@ export function usePriorities(config?: SWRConfiguration) {
 }
 
 // Realtime subscriptions to refresh all dashboard keys
-export function useDashboardRealtime() {
+export function useDashboardRealtime(enabled: boolean = true) {
   const { activeTenantId } = useAuth()
   useEffect(() => {
-    if (!activeTenantId) return
+    if (!activeTenantId || !enabled) return
     const channel = supabase
       .channel('dashboard-swr-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'enhanced_follow_ups' }, () => {
@@ -121,7 +121,7 @@ export function useDashboardRealtime() {
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [activeTenantId])
+  }, [activeTenantId, enabled])
 }
 
 

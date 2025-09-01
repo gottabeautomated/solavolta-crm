@@ -28,6 +28,20 @@ export function TaskListLite({ tasks, onOpenLead, className, estimatedRowHeight 
     setViewport({ height: el.clientHeight, scrollTop: el.scrollTop })
   }
 
+  function formatTaskType(title: string) {
+    const map: Record<string, string> = {
+      call: 'Anruf',
+      offer_followup: 'Angebots-Nachfassung',
+      meeting: 'Termin',
+      custom: 'Aufgabe',
+      offer: 'Angebot',
+      followup: 'Follow-up',
+      tvp: 'TVP'
+    }
+    // wenn title ein bekannter Typ ist, nutze Mapping, sonst gib original aus
+    return map[title as keyof typeof map] || title
+  }
+
   React.useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -144,18 +158,20 @@ export function TaskListLite({ tasks, onOpenLead, className, estimatedRowHeight 
                   <input type="checkbox" checked={selected.has(t.taskId)} onChange={()=>toggleSelect(t.taskId)} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">
-                      {colorDot(t.dueAt)} {t.title} —
+                      {colorDot(t.dueAt)} {formatTaskType(t.title)} —
                       <span className="text-gray-700">
-                        {' '}
-                        {leadById.get(t.leadId)?.name || leadById.get(t.leadId)?.email || leadById.get(t.leadId)?.phone || t.leadId.slice(0,8)}
+                        {' '}{leadById.get(t.leadId)?.name || leadById.get(t.leadId)?.email || leadById.get(t.leadId)?.phone || t.leadId.slice(0,8)}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-600">{renderCountdown(t.dueAt)}</div>
+                    <div className="text-xs text-gray-600 truncate">
+                      {renderCountdown(t.dueAt)}
+                      {t.source === 'efu' && t.notes ? ` • Notiz: ${t.notes}` : ''}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <button className="text-emerald-600 text-sm" onClick={()=>callLead(t.leadId)}>📞</button>
-                    <button className="text-blue-600 text-sm" onClick={()=>completeTask(t.taskId, 'efu')}>✅</button>
-                    <button className="text-amber-600 text-sm" onClick={()=>rescheduleTask(t.taskId, 'efu', new Date(Date.now() + 24*60*60*1000).toISOString().slice(0,10))}>⏰</button>
+                    <button title="Anrufen" className="text-emerald-600 text-sm" onClick={()=>callLead(t.leadId)}>📞</button>
+                    <button title="Erledigt" className="text-blue-600 text-sm" onClick={()=>completeTask(t.taskId, 'efu')}>✅</button>
+                    <button title="+1 Tag" className="text-amber-600 text-sm" onClick={()=>rescheduleTask(t.taskId, 'efu', new Date(Date.now() + 24*60*60*1000).toISOString().slice(0,10))}>⏰</button>
                   </div>
                 </div>
                 {swipedId === t.taskId && (

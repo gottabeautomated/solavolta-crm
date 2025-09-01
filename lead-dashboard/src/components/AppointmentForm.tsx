@@ -9,7 +9,7 @@ interface AppointmentFormProps {
 }
 
 export function AppointmentForm({ leadId, leadName, onSuccess, onCancel }: AppointmentFormProps) {
-  const { isCreating, lastResult, createAppointment, generateTimeSlots, isValidAppointmentDate } = useAppointments()
+  const { isCreating, lastResult, createLocalAppointment, triggerAppointmentWebhook, generateTimeSlots, isValidAppointmentDate } = useAppointments()
 
   const [appointmentDate, setAppointmentDate] = useState('')
   const [appointmentTime, setAppointmentTime] = useState('')
@@ -28,12 +28,8 @@ export function AppointmentForm({ leadId, leadName, onSuccess, onCancel }: Appoi
       alert('Bitte ein Datum in der Zukunft wählen')
       return
     }
-    const result = await createAppointment({
-      lead_id: leadId,
-      appointment_date: appointmentDate,
-      appointment_time: appointmentTime,
-      notes,
-    })
+    // 1) Direkt in Supabase speichern
+    const result = await createLocalAppointment(leadId, appointmentDate, appointmentTime, notes)
     if (result.success) onSuccess?.(result)
   }
 
@@ -77,13 +73,34 @@ export function AppointmentForm({ leadId, leadName, onSuccess, onCancel }: Appoi
           </div>
         )}
 
-        <div className="flex gap-3 pt-2">
-          <button type="submit" disabled={isCreating} className={`flex-1 px-4 py-2 text-white font-medium rounded-md transition-colors ${isCreating ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
-            {isCreating ? 'Termin wird erstellt…' : '📅 Termin erstellen'}
+        <div className="flex flex-col gap-2 pt-2">
+          <div className="flex gap-3">
+            <button type="submit" disabled={isCreating} className={`flex-1 px-4 py-2 text-white font-medium rounded-md transition-colors ${isCreating ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
+              {isCreating ? 'Termin wird erstellt…' : '📅 Termin erstellen'}
+            </button>
+            {onCancel && (
+              <button type="button" onClick={onCancel} className="px-4 py-2 text-gray-600 bg-gray-100 font-medium rounded-md hover:bg-gray-200">Abbrechen</button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              if (!appointmentDate || !appointmentTime) {
+                alert('Bitte Datum und Uhrzeit auswählen')
+                return
+              }
+              await triggerAppointmentWebhook({
+                lead_id: leadId,
+                appointment_date: appointmentDate,
+                appointment_time: appointmentTime,
+                notes,
+              })
+              // bewusst kein onSuccess – Webhook ist optional/entkoppelt
+            }}
+            className="w-full px-4 py-2 text-blue-700 bg-blue-50 font-medium rounded-md hover:bg-blue-100"
+          >
+            🔗 Workflow starten
           </button>
-          {onCancel && (
-            <button type="button" onClick={onCancel} className="px-4 py-2 text-gray-600 bg-gray-100 font-medium rounded-md hover:bg-gray-200">Abbrechen</button>
-          )}
         </div>
       </form>
     </div>

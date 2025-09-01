@@ -180,8 +180,8 @@ export function Checkbox({
                         {offer.number && (
                           <span className="ml-2 text-gray-600">#{offer.number}</span>
                         )}
-                        {offer.fileName && (
-                          <span className="ml-2 text-gray-600">📎 {offer.fileName}</span>
+                        {offer.storage_path && (
+                          <span className="ml-2 text-gray-600">📎 Datei</span>
                         )}
                       </div>
                       <button
@@ -228,10 +228,19 @@ function OfferInputForm({ type, onAdd, onCancel, leadId }: OfferInputFormProps) 
       onAdd({
         date,
         number: number || undefined,
-        fileName: uploaded.publicUrl,
         storage_path: uploaded.path,
         bucket: uploaded.bucket,
       })
+      // Trigger Edge Function für Betrags-Erkennung
+      if (uploaded.path && uploaded.bucket && leadId) {
+        try {
+          await fetch('/functions/v1/offer-parse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bucket: uploaded.bucket, path: uploaded.path, leadId })
+          })
+        } catch {}
+      }
       onCancel()
     })()
   }

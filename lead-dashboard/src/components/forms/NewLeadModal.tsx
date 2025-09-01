@@ -9,7 +9,7 @@ interface NewLeadModalProps {
 }
 
 export function NewLeadModal({ isOpen, onClose, onCreated }: NewLeadModalProps) {
-  const { createLead } = useLeads()
+  const { createLead, fetchLeads } = useLeads()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -18,6 +18,14 @@ export function NewLeadModal({ isOpen, onClose, onCreated }: NewLeadModalProps) 
   const [error, setError] = useState<string | null>(null)
 
   if (!isOpen) return null
+
+  const handleClose = () => {
+    setName('')
+    setEmail('')
+    setPhone('')
+    setAddress('')
+    onClose()
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -28,22 +36,11 @@ export function NewLeadModal({ isOpen, onClose, onCreated }: NewLeadModalProps) 
         email: email || null,
         phone: phone || null,
         address: address || null,
-        created_at: new Date().toISOString(),
-        status_since: new Date().toISOString(),
-        lead_status: 'Neu',
+        lead_status: 'Neu' as any,
         contact_type: null,
         phone_status: null,
-        appointment_date: null,
-        appointment_time: null,
-        offer_pv: false,
-        offer_storage: false,
-        offer_backup: false,
-        tvp: false,
         documentation: null,
         doc_link: null,
-        calendar_link: null,
-        follow_up: false,
-        follow_up_date: null,
         exported_to_sap: false,
         lat: null,
         lng: null,
@@ -58,7 +55,9 @@ export function NewLeadModal({ isOpen, onClose, onCreated }: NewLeadModalProps) 
       if (error) throw error
       if (data) {
         onCreated?.(data)
-        onClose()
+        // Liste schnell aktualisieren (optimistic Update existiert, hier zusätzlich hart revalidieren)
+        try { fetchLeads() } catch {}
+        handleClose()
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unbekannter Fehler')
@@ -98,7 +97,7 @@ export function NewLeadModal({ isOpen, onClose, onCreated }: NewLeadModalProps) 
           </div>
         </div>
         <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-end gap-2">
-          <button onClick={onClose} className="px-3 py-1 rounded border">Abbrechen</button>
+          <button onClick={handleClose} className="px-3 py-1 rounded border">Abbrechen</button>
           <button onClick={handleSave} disabled={saving} className="px-3 py-1 rounded bg-blue-600 text-white disabled:opacity-50">
             {saving ? 'Speichert...' : 'Erstellen'}
           </button>

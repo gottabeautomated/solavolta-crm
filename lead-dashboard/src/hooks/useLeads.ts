@@ -145,7 +145,7 @@ export function useLeads() {
 
     // Kunde erreicht → bevorzugt gegenüber Nicht-erreicht-Kaskade
     if ((updates as any).phone_status === 'erreichbar') {
-      const hasAppointment = Boolean((updates as any).appointment_date || (updates as any).next_action === 'appointment' || (currentLead as any).appointment_date)
+      const hasAppointment = Boolean((updates as any).appointmentBooked)
       if (hasAppointment) {
         return 'Termin vereinbart' as LeadStatus
       }
@@ -164,18 +164,29 @@ export function useLeads() {
     return currentLead.lead_status;
   };
 
+  const addBusinessDays = (date: Date, days: number) => {
+    const result = new Date(date)
+    let added = 0
+    while (added < days) {
+      result.setDate(result.getDate() + 1)
+      const day = result.getDay() // 0=Sun,6=Sat
+      if (day !== 0 && day !== 6) added += 1
+    }
+    return result.toISOString().split('T')[0]
+  }
+
   const generateFollowUpsForStatus = (lead: Lead, newStatus: LeadStatus): EnhancedFollowUp[] => {
     const followUps: EnhancedFollowUp[] = [];
     const today = new Date();
     
     switch(newStatus) {
       case 'Nicht erreicht 1x': {
-        // Wiedervorlage nächster Arbeitstag
+        // Wiedervorlage am nächsten Arbeitstag
         followUps.push({
           lead_id: lead.id,
           tenant_id: lead.tenant_id || '',
           title: 'Rückrufversuch 2',
-          due_date: addDays(today, 1),
+          due_date: addBusinessDays(today, 1),
           type: 'call',
           priority: 'medium',
           auto_generated: true,
@@ -315,14 +326,62 @@ export function useLeads() {
         return { data: null, error: new Error('Lead nicht gefunden') }
       }
       
-      // Neuen Status bestimmen
-      const newStatus = determineNewStatus(currentLead, leadData);
-      const updatedData = { ...leadData, lead_status: newStatus };
+      // Nicht-erreicht-Automatismus: Zähler nie vergessen
+      let patched: any = { ...leadData };
+      if ((leadData as any).phone_status === 'nicht_erreichbar') {
+        const prev = (currentLead as any).not_reached_count || 0
+        const incoming = (leadData as any).not_reached_count
+        const next = (typeof incoming === 'number' && incoming > prev) ? incoming : (prev + 1)
+        patched.not_reached_count = Math.min(3, next)
+        // Folgeaktion vorschlagen, wenn nicht gesetzt
+        if (!(leadData as any).follow_up) patched.follow_up = true
+        if (!(leadData as any).follow_up_date) {
+          const today = new Date()
+          const addBusinessDays = (date: Date, days: number) => {
+            const result = new Date(date); let added = 0
+            while (added < days) { result.setDate(result.getDate() + 1); const d = result.getDay(); if (d!==0 && d!==6) added++ }
+            return result.toISOString().slice(0,10)
+          }
+          patched.follow_up_date = addBusinessDays(today, 1)
+        }
+      }
+
+      // Prüfe, ob Termin in appointments existiert (heute oder zukünftig)
+      let appointmentBooked = false
+      try {
+        const todayISO = new Date().toISOString().slice(0,10) + 'T00:00:00'
+        const { data: appt } = await supabase
+          .from('appointments')
+          .select('id')
+          .eq('lead_id', leadData.id)
+          .eq('tenant_id', (currentLead as any).tenant_id as any)
+          .gte('starts_at', todayISO)
+          .limit(1)
+          .maybeSingle()
+        appointmentBooked = Boolean(appt?.id)
+      } catch {}
+
+      // Neuen Status bestimmen (wenn gerade lokal Termin erstellt wurde, UI sofort auf "Termin vereinbart")
+      const forced = (leadData as any).__force_status as LeadStatus | undefined
+      const newStatus = forced || determineNewStatus(currentLead, { ...patched, appointmentBooked } as any);
+      const updatedData = { ...patched, lead_status: newStatus } as any;
+      // Zeit-/Datumsnormalisierung: leere Strings -> NULL, um DB-Typfehler zu vermeiden
+      const normalizedData: any = { ...updatedData };
+      // Pseudo-Felder nicht in DB schreiben
+      delete normalizedData.__force_status;
+      delete normalizedData.appointmentBooked;
+      const toValidTimeOrNull = (v: any) => {
+        if (typeof v !== 'string') return v ?? null;
+        if (v.trim() === '') return null;
+        return /^\d{2}:\d{2}$/.test(v) ? v : null;
+      };
+      normalizedData.appointment_time = toValidTimeOrNull(normalizedData.appointment_time);
+      normalizedData.next_action_time = toValidTimeOrNull(normalizedData.next_action_time);
       
       const tenantId = activeTenantId
       const { data, error } = await supabase
         .from('leads')
-        .update(updatedData)
+        .update(normalizedData)
         .eq('id', leadData.id)
         .eq('tenant_id', tenantId as string)
         .select()
@@ -355,6 +414,44 @@ export function useLeads() {
               if (import.meta.env.DEV) console.error('3x nicht erreicht Webhook fehlgeschlagen', e)
             }
           }
+        }
+
+        // Ensure EFU for manual Follow-up toggle/date
+        try {
+          const requestedFollowUp = (leadData as any).follow_up === true
+          const dueDate = (leadData as any).follow_up_date as string | null
+          if (requestedFollowUp && dueDate && data.tenant_id) {
+            const { data: existing } = await supabase
+              .from('enhanced_follow_ups')
+              .select('id, due_date, completed_at, type')
+              .eq('tenant_id', data.tenant_id as any)
+              .eq('lead_id', data.id)
+              .eq('type', 'followup')
+              .is('completed_at', null)
+              .limit(1)
+              .maybeSingle()
+            if (existing?.id) {
+              await supabase
+                .from('enhanced_follow_ups')
+                .update({ due_date: dueDate })
+                .eq('id', existing.id)
+            } else {
+              await supabase
+                .from('enhanced_follow_ups')
+                .insert({
+                  tenant_id: data.tenant_id as any,
+                  lead_id: data.id,
+                  type: 'followup' as any,
+                  due_date: dueDate,
+                  priority: 'medium' as any,
+                  auto_generated: false,
+                  escalation_level: 0,
+                  notes: (leadData as any).quick_notes || null,
+                })
+            }
+          }
+        } catch (e) {
+          if (import.meta.env.DEV) console.warn('EFU sync failed', e)
         }
 
         // Aufgabe erstellen, wenn nächste Aktion "offer" gesetzt wurde

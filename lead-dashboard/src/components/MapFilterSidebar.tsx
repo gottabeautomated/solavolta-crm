@@ -1,6 +1,7 @@
 import React from 'react'
 import { useMapFilters } from '../hooks/useMapFilters'
-import { LEAD_STATUS_OPTIONS } from '../types/leads'
+import { LEAD_STATUS_OPTIONS, ARCHIVE_FILTER_OPTIONS } from '../types/leads'
+import { getStatusColor } from '../lib/mapUtils'
 import type { Lead, LeadStatus } from '../types/leads'
 
 interface MapFilterSidebarProps {
@@ -50,24 +51,49 @@ export function MapFilterSidebar({ isOpen, onToggle, leads, onFilteredLeadsChang
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Archiv</label>
+            <div className="space-y-1">
+              {ARCHIVE_FILTER_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => updateFilter('archivedMode', opt.value as any)}
+                  className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
+                    filters.archivedMode === opt.value ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
             <div className="space-y-2">
-          {LEAD_STATUS_OPTIONS.map((status) => {
-            const count = leads.filter((lead) => lead.lead_status === status.value).length
-            const isSelected = filters.statuses.includes(status.value)
-            return (
-              <button
-                key={status.value}
-                onClick={() => toggleStatus(status.value as LeadStatus)}
-                className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-md transition-colors ${
-                  isSelected ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <span>{status.label}</span>
-                <span className="text-xs">{count}</span>
-              </button>
-            )
-          })}
+              {LEAD_STATUS_OPTIONS.map((status) => {
+                const count = leads.filter((lead) => lead.lead_status === status.value).length
+                const isSelected = filters.statuses.includes(status.value)
+                const color = getStatusColor(status.value)
+                return (
+                  <button
+                    key={status.value}
+                    onClick={() => toggleStatus(status.value as LeadStatus)}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-md transition-colors ${
+                      isSelected ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span
+                        aria-hidden
+                        className="inline-block"
+                        style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color, boxShadow: '0 0 0 2px #fff inset', border: '1px solid #e5e7eb' }}
+                      />
+                      {status.label}
+                    </span>
+                    <span className="text-xs">{count}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
@@ -75,17 +101,18 @@ export function MapFilterSidebar({ isOpen, onToggle, leads, onFilteredLeadsChang
             <label className="block text-sm font-medium text-gray-700 mb-2">Follow-up</label>
             <div className="space-y-1">
               {[
-                { value: null, label: 'Alle' },
-                { value: true, label: 'Follow-up erforderlich' },
-                { value: false, label: 'Kein Follow-up' }
+                { value: null, label: 'Alle', ring: '#e5e7eb' },
+                { value: true, label: 'Follow-up erforderlich', ring: '#fbbf24' },
+                { value: false, label: 'Kein Follow-up', ring: '#e5e7eb' }
               ].map((option) => (
                 <button
                   key={String(option.value)}
                   onClick={() => updateFilter('followUp', option.value)}
-                  className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors ${
                     filters.followUp === option.value ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
                   }`}
                 >
+                  <span aria-hidden className="inline-block" style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${option.ring}` }} />
                   {option.label}
                 </button>
               ))}

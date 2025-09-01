@@ -16,6 +16,8 @@ export type Database = {
           phone_status: string | null;
           appointment_date: string | null;
           appointment_time: string | null;
+          appointment_channel: string | null;
+          appointment_completed: boolean | null;
           offer_pv: boolean | null;
           offer_storage: boolean | null;
           offer_backup: boolean | null;
@@ -23,6 +25,7 @@ export type Database = {
           documentation: string | null;
           doc_link: string | null;
           calendar_link: string | null;
+          offers: any | null;
           follow_up: boolean | null;
           follow_up_date: string | null;
           exported_to_sap: boolean | null;
@@ -33,6 +36,14 @@ export type Database = {
           next_action_time: string | null;
           preliminary_offer: boolean | null;
           lost_reason: string | null;
+          offer_created_at: string | null;
+          offer_sent_at: string | null;
+          offer_amount: number | null;
+          offer_link: string | null;
+          won_at: string | null;
+          lost_competitor: string | null;
+          paused_until: string | null;
+          pause_reason: string | null;
           voicemail_left: boolean | null;
           phone_switched_off: boolean | null;
           not_reached_count: number | null;
@@ -44,6 +55,7 @@ export type Database = {
           quick_notes: string | null;
           tenant_id: string | null;
           user_id: string | null;
+          archived: boolean | null;
         };
         Insert: {
           id?: string;
@@ -59,6 +71,8 @@ export type Database = {
           phone_status?: string | null;
           appointment_date?: string | null;
           appointment_time?: string | null;
+          appointment_channel?: string | null;
+          appointment_completed?: boolean | null;
           offer_pv?: boolean | null;
           offer_storage?: boolean | null;
           offer_backup?: boolean | null;
@@ -66,6 +80,7 @@ export type Database = {
           documentation?: string | null;
           doc_link?: string | null;
           calendar_link?: string | null;
+          offers?: any | null;
           follow_up?: boolean | null;
           follow_up_date?: string | null;
           exported_to_sap?: boolean | null;
@@ -76,6 +91,14 @@ export type Database = {
           next_action_time?: string | null;
           preliminary_offer?: boolean | null;
           lost_reason?: string | null;
+          offer_created_at?: string | null;
+          offer_sent_at?: string | null;
+          offer_amount?: number | null;
+          offer_link?: string | null;
+          won_at?: string | null;
+          lost_competitor?: string | null;
+          paused_until?: string | null;
+          pause_reason?: string | null;
           voicemail_left?: boolean | null;
           phone_switched_off?: boolean | null;
           not_reached_count?: number | null;
@@ -87,6 +110,7 @@ export type Database = {
           quick_notes?: string | null;
           tenant_id?: string | null;
           user_id?: string | null;
+          archived?: boolean | null;
         };
         Update: {
           id?: string;
@@ -102,6 +126,8 @@ export type Database = {
           phone_status?: string | null;
           appointment_date?: string | null;
           appointment_time?: string | null;
+          appointment_channel?: string | null;
+          appointment_completed?: boolean | null;
           offer_pv?: boolean | null;
           offer_storage?: boolean | null;
           offer_backup?: boolean | null;
@@ -109,6 +135,7 @@ export type Database = {
           documentation?: string | null;
           doc_link?: string | null;
           calendar_link?: string | null;
+          offers?: any | null;
           follow_up?: boolean | null;
           follow_up_date?: string | null;
           exported_to_sap?: boolean | null;
@@ -119,6 +146,14 @@ export type Database = {
           next_action_time?: string | null;
           preliminary_offer?: boolean | null;
           lost_reason?: string | null;
+          offer_created_at?: string | null;
+          offer_sent_at?: string | null;
+          offer_amount?: number | null;
+          offer_link?: string | null;
+          won_at?: string | null;
+          lost_competitor?: string | null;
+          paused_until?: string | null;
+          pause_reason?: string | null;
           voicemail_left?: boolean | null;
           phone_switched_off?: boolean | null;
           not_reached_count?: number | null;
@@ -130,6 +165,7 @@ export type Database = {
           quick_notes?: string | null;
           tenant_id?: string | null;
           user_id?: string | null;
+          archived?: boolean | null;
         };
       };
     };

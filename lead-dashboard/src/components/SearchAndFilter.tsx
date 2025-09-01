@@ -1,10 +1,9 @@
 import { useState, useMemo, useEffect } from 'react'
 import { SearchInput } from './ui/SearchInput'
-import { FilterDropdown } from './ui/FilterDropdown'
-import { FilterToggle } from './ui/FilterToggle'
 import { useDebounce } from '../hooks/useDebounce'
-import type { LeadFilters, LeadStatus, ContactType } from '../types/leads'
-import { LEAD_STATUS_OPTIONS, CONTACT_TYPE_OPTIONS } from '../types/leads'
+import type { LeadFilters, LeadStatus } from '../types/leads'
+import { LEAD_STATUS_OPTIONS, ARCHIVE_FILTER_OPTIONS } from '../types/leads'
+import { getStatusColor } from '../lib/mapUtils'
 
 interface SearchAndFilterProps {
   onFiltersChange: (filters: LeadFilters) => void
@@ -14,9 +13,7 @@ interface SearchAndFilterProps {
 export function SearchAndFilter({ onFiltersChange, disabled = false }: SearchAndFilterProps) {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<LeadStatus | null>(null)
-  const [contactType, setContactType] = useState<ContactType | null>(null)
-  const [followUp, setFollowUp] = useState<boolean | null>(null)
-  const [exportedToSap, setExportedToSap] = useState<boolean | null>(null)
+  const [archivedMode, setArchivedMode] = useState<'exclude_archived' | 'only_archived' | 'include_archived'>('exclude_archived')
 
   // Debounce search input - verhindert zu häufige Updates
   const debouncedSearch = useDebounce(search, 300)
@@ -31,18 +28,10 @@ export function SearchAndFilter({ onFiltersChange, disabled = false }: SearchAnd
     if (status) {
       result.status = status
     }
-    if (contactType) {
-      result.contact_type = contactType
-    }
-    if (followUp !== null) {
-      result.follow_up = followUp
-    }
-    if (exportedToSap !== null) {
-      result.exported_to_sap = exportedToSap
-    }
+    result.archivedMode = archivedMode
 
     return result
-  }, [debouncedSearch, status, contactType, followUp, exportedToSap])
+  }, [debouncedSearch, status, archivedMode])
 
   // Notify parent when filters change - mit useEffect statt direktem Call
   useEffect(() => {
@@ -53,24 +42,14 @@ export function SearchAndFilter({ onFiltersChange, disabled = false }: SearchAnd
   const handleReset = () => {
     setSearch('')
     setStatus(null)
-    setContactType(null)
-    setFollowUp(null)
-    setExportedToSap(null)
+    setArchivedMode('exclude_archived')
   }
 
   // Check if any filters are active
   const hasActiveFilters = Object.keys(filters).length > 0
 
-  // Transform options for dropdown
-  const statusOptions = LEAD_STATUS_OPTIONS.map(status => ({
-    value: status,
-    label: status
-  }))
-
-  const contactTypeOptions = CONTACT_TYPE_OPTIONS.map(type => ({
-    value: type,
-    label: type
-  }))
+  // Transform options for dropdown (nur Status für Chips-Tooltips)
+  const statusOptions = LEAD_STATUS_OPTIONS.map(status => ({ value: status, label: status }))
 
   return (
     <div className="bg-white p-4 rounded-lg shadow border border-gray-200 mb-6">
@@ -100,78 +79,69 @@ export function SearchAndFilter({ onFiltersChange, disabled = false }: SearchAnd
       </div>
 
       {/* Filters - Desktop */}
-      <div className="hidden md:grid md:grid-cols-4 md:gap-4">
-        <FilterDropdown
-          label="Status"
-          value={status}
-          options={statusOptions}
-          onChange={(value) => setStatus(value as LeadStatus)}
-          placeholder="Alle Status"
-          disabled={disabled}
-        />
-        
-        <FilterDropdown
-          label="Kontakttyp"
-          value={contactType}
-          options={contactTypeOptions}
-          onChange={(value) => setContactType(value as ContactType)}
-          placeholder="Alle Typen"
-          disabled={disabled}
-        />
-        
-        <FilterToggle
-          label="Follow-up"
-          value={followUp}
-          onChange={setFollowUp}
-          disabled={disabled}
-        />
-        
-        <FilterToggle
-          label="SAP Export"
-          value={exportedToSap}
-          onChange={setExportedToSap}
-          disabled={disabled}
-        />
+      <div className="hidden md:block">
+        {/* Status- & Archiv-Chips kompakt in einer Reihe */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+          <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pr-2">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className={`px-2.5 py-1 rounded-full border text-xs ${status === null ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                onClick={() => setStatus(null)}
+                disabled={disabled}
+              >
+                Alle
+              </button>
+              {LEAD_STATUS_OPTIONS.map((s) => (
+                <button
+                  key={s.value}
+                  type="button"
+                  className={`pl-2 pr-2.5 py-1 rounded-full border text-xs flex items-center gap-1 ${status === (s.value as LeadStatus) ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                  onClick={() => setStatus(prev => prev === (s.value as LeadStatus) ? null : (s.value as LeadStatus))}
+                  disabled={disabled}
+                  title={s.label}
+                >
+                  <span aria-hidden className="inline-block" style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: getStatusColor(s.value) }} />
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <div className="mx-2 h-5 w-px bg-gray-200" aria-hidden />
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-500 mr-1">Archiv</span>
+              <button
+                type="button"
+                className={`px-2.5 py-1 rounded-full border text-xs ${archivedMode === 'exclude_archived' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                onClick={() => setArchivedMode('exclude_archived')}
+                disabled={disabled}
+              >
+                Ohne
+              </button>
+              <button
+                type="button"
+                className={`px-2.5 py-1 rounded-full border text-xs ${archivedMode === 'include_archived' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                onClick={() => setArchivedMode('include_archived')}
+                disabled={disabled}
+              >
+                Einbl.
+              </button>
+              <button
+                type="button"
+                className={`px-2.5 py-1 rounded-full border text-xs ${archivedMode === 'only_archived' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                onClick={() => setArchivedMode('only_archived')}
+                disabled={disabled}
+              >
+                Nur Arch.
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Filters - Mobile */}
-      <div className="md:hidden space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <FilterDropdown
-            label="Status"
-            value={status}
-            options={statusOptions}
-            onChange={(value) => setStatus(value as LeadStatus)}
-            placeholder="Alle"
-            disabled={disabled}
-          />
-          
-          <FilterDropdown
-            label="Kontakttyp"
-            value={contactType}
-            options={contactTypeOptions}
-            onChange={(value) => setContactType(value as ContactType)}
-            placeholder="Alle"
-            disabled={disabled}
-          />
-        </div>
-        
-        <div className="grid grid-cols-2 gap-4">
-          <FilterToggle
-            label="Follow-up"
-            value={followUp}
-            onChange={setFollowUp}
-            disabled={disabled}
-          />
-          
-          <FilterToggle
-            label="SAP Export"
-            value={exportedToSap}
-            onChange={setExportedToSap}
-            disabled={disabled}
-          />
-        </div>
-      </div>
+      {/* Archiv-Filter separat entfällt, da neben Status integriert */}
+
+      {/* Filters - Mobile: nur Status/Archiv-Leiste oben, daher hier nichts weiter */}
 
       {/* Active Filters Display */}
       {hasActiveFilters && (
@@ -202,37 +172,13 @@ export function SearchAndFilter({ onFiltersChange, disabled = false }: SearchAnd
                 </button>
               </span>
             )}
-            
-            {filters.contact_type && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                Typ: {filters.contact_type}
+
+            {filters.archivedMode && filters.archivedMode !== 'exclude_archived' && (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                Archiv: {filters.archivedMode === 'only_archived' ? 'Nur Archivierte' : 'Archivierte einblenden'}
                 <button
-                  onClick={() => setContactType(null)}
-                  className="ml-1 text-green-600 hover:text-green-800"
-                >
-                  ×
-                </button>
-              </span>
-            )}
-            
-            {filters.follow_up !== undefined && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                Follow-up: {filters.follow_up ? 'Ja' : 'Nein'}
-                <button
-                  onClick={() => setFollowUp(null)}
-                  className="ml-1 text-yellow-600 hover:text-yellow-800"
-                >
-                  ×
-                </button>
-              </span>
-            )}
-            
-            {filters.exported_to_sap !== undefined && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                SAP: {filters.exported_to_sap ? 'Exportiert' : 'Nicht exportiert'}
-                <button
-                  onClick={() => setExportedToSap(null)}
-                  className="ml-1 text-gray-600 hover:text-gray-800"
+                  onClick={() => setArchivedMode('exclude_archived')}
+                  className="ml-1 text-blue-600 hover:text-blue-800"
                 >
                   ×
                 </button>

@@ -206,11 +206,11 @@ export function LeadList({ onLeadClick }: LeadListProps) {
       <div className="bg-white shadow rounded-lg overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <h2 className="text-lg font-semibold text-gray-900">
               Leads ({filteredLeads.length} von {leads.length})
             </h2>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-wrap items-center gap-2 md:gap-3 justify-end">
               {Object.keys(activeFilters).length > 0 && (
                 <button 
                   onClick={() => setActiveFilters({})}
@@ -219,38 +219,39 @@ export function LeadList({ onLeadClick }: LeadListProps) {
                   Filter zurücksetzen
                 </button>
               )}
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setShowImportModal(true)}
-                  className="inline-flex items-center px-3 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700"
-                >
-                  Leads importieren
-                </button>
-                <button 
-                  onClick={() => refetch()}
-                  className="text-sm text-gray-500 hover:text-gray-700"
-                >
-                  Aktualisieren
-                </button>
-                <button
-                  onClick={async () => {
-                    const withoutCoords = (leads || []).filter(l => l.address && !l.lat && !l.lng)
-                    if (withoutCoords.length === 0) return
-                    await geocodeMultipleLeads(withoutCoords as Lead[])
-                    await refetch()
-                  }}
-                  disabled={isGeocoding}
-                  className="inline-flex items-center px-3 py-1.5 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  Batch Geocoding
-                </button>
-                <button
-                  onClick={() => setShowNewModal(true)}
-                  className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                >
-                  + Neuer Lead
-                </button>
-              </div>
+              {/* Auf Mobil zuerst: Neuer Lead */}
+              <button
+                onClick={() => setShowNewModal(true)}
+                className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 order-1"
+                aria-label="Neuen Lead erstellen"
+              >
+                + Neuer Lead
+              </button>
+
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="inline-flex items-center px-3 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 order-2"
+              >
+                Leads importieren
+              </button>
+              <button 
+                onClick={() => refetch()}
+                className="text-sm text-gray-500 hover:text-gray-700 order-3"
+              >
+                Aktualisieren
+              </button>
+              <button
+                onClick={async () => {
+                  const withoutCoords = (leads || []).filter(l => l.address && !l.lat && !l.lng)
+                  if (withoutCoords.length === 0) return
+                  await geocodeMultipleLeads(withoutCoords as Lead[])
+                  await refetch()
+                }}
+                disabled={isGeocoding}
+                className="inline-flex items-center px-3 py-1.5 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700 disabled:opacity-50 order-4"
+              >
+                Batch Geocoding
+              </button>
             </div>
           </div>
         </div>
@@ -287,7 +288,7 @@ export function LeadList({ onLeadClick }: LeadListProps) {
               {filteredLeads.map((lead) => (
                 <tr 
                   key={lead.id}
-                  className="hover:bg-gray-50 cursor-pointer transition-colors"
+                  className={`hover:bg-gray-50 cursor-pointer transition-colors ${ (lead as any).archived ? 'opacity-60' : ''}`}
                   onClick={() => onLeadClick?.(lead)}
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -298,6 +299,9 @@ export function LeadList({ onLeadClick }: LeadListProps) {
                       {lead.follow_up && (
                         <Badge variant="warning" size="sm">Follow-up</Badge>
                       )}
+                      {(lead as any).archived && (
+                        <Badge variant="default" size="sm">Archiviert</Badge>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -306,7 +310,7 @@ export function LeadList({ onLeadClick }: LeadListProps) {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="relative inline-flex items-center gap-2">
-                      <LeadStatusBadge status={lead.lead_status} />
+                      <LeadStatusBadge status={lead.lead_status as LeadStatus} />
                       <IconButton
                         icon={
                           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -315,10 +319,10 @@ export function LeadList({ onLeadClick }: LeadListProps) {
                         }
                         variant="ghost"
                         size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
+                        onClick={(ev) => {
+                          ev.stopPropagation()
                           setStatusMenuFor(prev => prev === lead.id ? null : lead.id)
-                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                          const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect()
                           setMenuPos({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: Math.max(180, rect.width + 140) })
                         }}
                         title="Aktuellen Status ändern"
@@ -394,7 +398,7 @@ export function LeadList({ onLeadClick }: LeadListProps) {
           {filteredLeads.map((lead) => (
             <div 
               key={lead.id}
-              className="border-b border-gray-200 p-4 hover:bg-gray-50 cursor-pointer"
+              className={`border-b border-gray-200 p-4 hover:bg-gray-50 cursor-pointer ${ (lead as any).archived ? 'opacity-60' : ''}`}
               onClick={() => onLeadClick?.(lead)}
             >
               <div className="flex items-start justify-between mb-2">
@@ -404,7 +408,7 @@ export function LeadList({ onLeadClick }: LeadListProps) {
                   </h3>
                   <p className="text-sm text-gray-500">{lead.phone}</p>
                 </div>
-                <LeadStatusBadge status={lead.lead_status} />
+                <LeadStatusBadge status={lead.lead_status as LeadStatus} />
               </div>
               
               {lead.address && (
@@ -418,6 +422,9 @@ export function LeadList({ onLeadClick }: LeadListProps) {
                   )}
                   {lead.follow_up && (
                     <Badge variant="warning" size="sm">Follow-up</Badge>
+                  )}
+                  {(lead as any).archived && (
+                    <Badge variant="default" size="sm">Archiviert</Badge>
                   )}
                 </div>
                 
@@ -442,6 +449,14 @@ export function LeadList({ onLeadClick }: LeadListProps) {
     </div>
     <NewLeadModal isOpen={showNewModal} onClose={() => setShowNewModal(false)} onCreated={(lead)=> onLeadClick?.(lead)} />
     <ImportLeadsModal open={showImportModal} onClose={() => setShowImportModal(false)} onImported={() => refetch()} />
+    {/* Floating Action Button (mobil) */}
+    <button
+      onClick={() => setShowNewModal(true)}
+      className="md:hidden fixed bottom-5 right-5 z-40 rounded-full bg-blue-600 text-white shadow-lg px-5 py-3 text-sm hover:bg-blue-700"
+      aria-label="Neuen Lead hinzufügen"
+    >
+      + Lead
+    </button>
     </>
   )
 }
