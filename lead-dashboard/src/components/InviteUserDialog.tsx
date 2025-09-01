@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
-import { Dialog } from '@headlessui/react'
+// Optional UI lib; in Build-Umgebungen ohne Paket vermeiden wir den Import
+// import { Dialog } from '@headlessui/react'
 import { useAuthContext } from '../contexts/AuthContext'
 import { sendInvitation, type InvitationRole } from '../lib/invitations'
 

@@ -29,8 +29,12 @@ export function DiagnosticPanel({ inline = false }: { inline?: boolean }) {
       items.push({ title: 'View v_today_tasks', data: viewToday.data, error: viewToday.error })
       const existsTenants = await supabase.from<Row>('information_schema.tables').select('table_name').eq('table_schema', 'public').in('table_name', ['tenants','memberships','invitations','leads','appointments']).limit(10)
       items.push({ title: 'Tables exist', data: existsTenants.data, error: existsTenants.error })
-      const who = await supabase.rpc('noop').catch(()=>({}))
-      items.push({ title: 'RPC noop (optional)', data: who })
+      try {
+        const who = await (supabase as any).rpc('noop')
+        items.push({ title: 'RPC noop (optional)', data: who })
+      } catch (e) {
+        items.push({ title: 'RPC noop (optional)', error: e })
+      }
     } catch (e) {
       items.push({ title: 'Diagnostics error', error: e })
     } finally {

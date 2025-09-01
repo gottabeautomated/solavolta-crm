@@ -4,7 +4,7 @@ import { TaskListLite } from './TaskListLite'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useEnhancedFollowUps } from '../hooks/useEnhancedFollowUps'
-import { isDerivedContactCandidate, normalizeStatus } from '../lib/statusUtils'
+import { normalizeStatus } from '../lib/statusUtils'
 import { useLeads } from '../hooks/useLeads'
 
 interface Props {

@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from 'react'
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
 import Papa from 'papaparse'
 import { supabase } from '../lib/supabase'
 import type { Lead } from '../types/leads'
