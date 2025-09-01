@@ -24,6 +24,7 @@ const leadFields = [
 
 export function ImportLeadsModal({ open, onClose, onImported }: ImportLeadsModalProps) {
   const [file, setFile] = useState<File | null>(null)
+  void file
   const [rows, setRows] = useState<CsvRow[]>([])
   const [header, setHeader] = useState<string[]>([])
   const [mapping, setMapping] = useState<Record<string, string>>({})

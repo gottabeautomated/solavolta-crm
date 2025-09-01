@@ -458,20 +458,6 @@ function WeekCalendar({ appointments, onOpenLead }: { appointments: Array<{ id: 
   )
 }
 
-function UpcomingList({ items, onOpenLead }: { items: Array<{ id: string; due_date: string; lead_id: string; type: string; notes?: string }>; onOpenLead?: (id: string) => void }) {
-  return (
-    <ul className="divide-y">
-      {items.map(it => (
-        <li key={it.id} className="py-2 flex items-center justify-between">
-          <div className="min-w-0">
-            <div className="text-sm font-medium text-gray-900 truncate">{new Date(it.due_date).toLocaleDateString('de-DE')} · {it.type}</div>
-            {it.notes && <div className="text-xs text-gray-600 truncate">{it.notes}</div>}
-          </div>
-          <button className="text-blue-600 text-sm" onClick={() => onOpenLead?.(it.lead_id)}>Öffnen</button>
-        </li>
-      ))}
-    </ul>
-  )
-}
+// Hinweis: "UpcomingList" war früher separat; aktuell nicht verwendet
 
 
