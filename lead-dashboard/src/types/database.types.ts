@@ -14,6 +14,7 @@ export type Database = {
           lead_status: string | null;
           contact_type: string | null;
           phone_status: string | null;
+          // Legacy appointment_* Felder wurden entfernt – optional für Abwärtskompatibilität
           appointment_date: string | null;
           appointment_time: string | null;
           appointment_channel: string | null;

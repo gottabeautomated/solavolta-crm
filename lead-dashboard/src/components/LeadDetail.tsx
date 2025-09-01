@@ -157,7 +157,7 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
         setTimeout(() => setSaveMessage(null), 3000)
       }
     } catch (error) {
-      if (import.meta.env.DEV) console.error('Fehler beim Speichern:', error)
+      try { if ((import.meta as any)?.env?.DEV) console.error('Fehler beim Speichern:', error) } catch {}
       setSaveMessage(`Fehler beim Speichern: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`)
     } finally {
       setIsSubmitting(false)
@@ -345,7 +345,7 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
                 <span className="text-gray-500">Termin: </span>
                 <span>
                   {new Date((lead as any).appointment_date).toLocaleDateString('de-DE')}
-                  {lead.appointment_time ? `, ${(lead as any).appointment_time}` : ''}
+                  {(lead as any).appointment_time ? `, ${(lead as any).appointment_time}` : ''}
                   {(lead as any).appointment_channel ? ` — ${((lead as any).appointment_channel === 'vor_ort') ? 'Vor Ort' : ((lead as any).appointment_channel === 'telefon') ? 'Telefon' : 'Online'}` : ''}
                   {(lead as any).appointment_completed ? ' (durchgeführt)' : ''}
                 </span>

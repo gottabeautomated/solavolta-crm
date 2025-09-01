@@ -167,6 +167,8 @@ export function LeadForm({ lead, onSave, onCancel, isSubmitting = false }: LeadF
         next_action: values.next_action || null,
         next_action_date: toValidDateOrNull(values.next_action_date),
         next_action_time: toValidTimeOrNull(values.next_action_time),
+        // appointment_time wird nicht mehr in leads gespeichert (appointments Tabelle)
+        appointment_time: undefined as any,
         preliminary_offer: values.preliminary_offer || false,
         offer_amount: (values as any).offer_amount ? Number((values as any).offer_amount) : null,
         offer_link: (values as any).offer_link || null,

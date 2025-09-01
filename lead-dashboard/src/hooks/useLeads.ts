@@ -361,10 +361,15 @@ export function useLeads() {
         appointmentBooked = Boolean(appt?.id)
       } catch {}
 
-      // Neuen Status bestimmen (wenn gerade lokal Termin erstellt wurde, UI sofort auf "Termin vereinbart")
+      // Neuen Status bestimmen
+      // Priorität:
+      // 1) __force_status (interne UI-Forcierung z. B. nach Terminanlage)
+      // 2) explizit vom Benutzer gesetzter lead_status (z. B. Dropdown in Liste/Form)
+      // 3) automatische Ableitung aus aktuellem Zustand
       const forced = (leadData as any).__force_status as LeadStatus | undefined
-      const newStatus = forced || determineNewStatus(currentLead, { ...patched, appointmentBooked } as any);
-      const updatedData = { ...patched, lead_status: newStatus } as any;
+      const explicit = (leadData as any).lead_status as LeadStatus | undefined
+      const newStatus = forced || explicit || determineNewStatus(currentLead, { ...patched, appointmentBooked } as any)
+      const updatedData = { ...patched, lead_status: newStatus } as any
       // Zeit-/Datumsnormalisierung: leere Strings -> NULL, um DB-Typfehler zu vermeiden
       const normalizedData: any = { ...updatedData };
       // Pseudo-Felder nicht in DB schreiben
@@ -375,7 +380,15 @@ export function useLeads() {
         if (v.trim() === '') return null;
         return /^\d{2}:\d{2}$/.test(v) ? v : null;
       };
-      normalizedData.appointment_time = toValidTimeOrNull(normalizedData.appointment_time);
+      // Legacy Felder nicht mehr schreiben – Termin ist in appointments ausgelagert
+      const legacyFields = [
+        'appointment_time',
+        'appointment_date',
+        'appointment_channel',
+        'appointment_completed',
+        'calendar_link'
+      ] as const
+      for (const key of legacyFields) delete (normalizedData as any)[key]
       normalizedData.next_action_time = toValidTimeOrNull(normalizedData.next_action_time);
       
       const tenantId = activeTenantId
