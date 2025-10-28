@@ -112,62 +112,27 @@ CREATE INDEX IF NOT EXISTS idx_memberships_role ON public.tenant_memberships(rol
 -- RLS aktivieren
 ALTER TABLE public.tenant_memberships ENABLE ROW LEVEL SECURITY;
 
--- Alte Policies löschen (falls vorhanden)
+-- Alte Policies löschen (falls vorhanden) - inkl. fehlerhafter Policies
 DROP POLICY IF EXISTS memberships_select ON public.tenant_memberships;
 DROP POLICY IF EXISTS memberships_select_admin ON public.tenant_memberships;
 DROP POLICY IF EXISTS memberships_insert ON public.tenant_memberships;
 DROP POLICY IF EXISTS memberships_update ON public.tenant_memberships;
 DROP POLICY IF EXISTS memberships_delete ON public.tenant_memberships;
+DROP POLICY IF EXISTS tm_select_own ON public.tenant_memberships;
+DROP POLICY IF EXISTS tm_service_role_all ON public.tenant_memberships;
+DROP POLICY IF EXISTS memberships_select_own ON public.tenant_memberships;
+DROP POLICY IF EXISTS memberships_service_role ON public.tenant_memberships;
 
--- Policy: User kann nur eigene Memberships sehen
-CREATE POLICY memberships_select ON public.tenant_memberships
+-- EINFACHE Policy ohne Rekursion: User kann nur eigene Memberships sehen
+CREATE POLICY memberships_select_own ON public.tenant_memberships
   FOR SELECT
   USING (user_id = auth.uid());
 
--- Policy: Owner/Admin kann alle Memberships des Tenants sehen
-CREATE POLICY memberships_select_admin ON public.tenant_memberships
-  FOR SELECT
-  USING (
-    tenant_id IN (
-      SELECT tenant_id FROM public.tenant_memberships 
-      WHERE user_id = auth.uid() 
-      AND role IN ('owner', 'admin')
-    )
-  );
-
--- Policy: Owner/Admin kann Memberships erstellen
-CREATE POLICY memberships_insert ON public.tenant_memberships
-  FOR INSERT
-  WITH CHECK (
-    tenant_id IN (
-      SELECT tenant_id FROM public.tenant_memberships 
-      WHERE user_id = auth.uid() 
-      AND role IN ('owner', 'admin')
-    )
-  );
-
--- Policy: Owner/Admin kann Memberships ändern
-CREATE POLICY memberships_update ON public.tenant_memberships
-  FOR UPDATE
-  USING (
-    tenant_id IN (
-      SELECT tenant_id FROM public.tenant_memberships 
-      WHERE user_id = auth.uid() 
-      AND role IN ('owner', 'admin')
-    )
-  );
-
--- Policy: Owner/Admin kann Memberships löschen (außer eigene Owner-Rolle)
-CREATE POLICY memberships_delete ON public.tenant_memberships
-  FOR DELETE
-  USING (
-    tenant_id IN (
-      SELECT tenant_id FROM public.tenant_memberships 
-      WHERE user_id = auth.uid() 
-      AND role IN ('owner', 'admin')
-    )
-    AND NOT (user_id = auth.uid() AND role = 'owner')
-  );
+-- Service Role darf alles (für Admin-Operationen via Backend)
+CREATE POLICY memberships_service_role ON public.tenant_memberships
+  FOR ALL
+  USING (auth.jwt()->>'role' = 'service_role')
+  WITH CHECK (auth.jwt()->>'role' = 'service_role');
 
 -- JETZT Tenants-Policy erstellen (nachdem tenant_memberships existiert)
 DROP POLICY IF EXISTS tenants_select ON public.tenants;
