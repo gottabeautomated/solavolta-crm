@@ -107,6 +107,8 @@ export class CalendarService {
         sendInvite: request.sendInvite !== false, // Default: true
       }
 
+      console.log('🚀 Sending to webhook:', this.webhookUrl, payload)
+      
       const response = await fetch(this.webhookUrl, {
         method: 'POST',
         headers: {
@@ -115,11 +117,16 @@ export class CalendarService {
         body: JSON.stringify(payload),
       })
 
+      console.log('📡 Webhook response status:', response.status)
+
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        const errorText = await response.text()
+        console.error('❌ Webhook error response:', errorText)
+        throw new Error(`HTTP ${response.status}: ${errorText}`)
       }
 
       const result = await response.json()
+      console.log('✅ Webhook result:', result)
       return result as CreateAppointmentResponse
     } catch (error) {
       return {

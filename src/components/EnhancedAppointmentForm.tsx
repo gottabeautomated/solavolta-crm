@@ -70,10 +70,13 @@ export function EnhancedAppointmentForm({ lead, tenantId, onSuccess, onCancel }:
           sendInvite: true,
         })
 
+        console.log('📅 Webhook result:', result)
+        
         if (result.success) {
           setSuccess(true)
           setTimeout(() => onSuccess?.(result), 1500)
         } else {
+          console.error('❌ Webhook failed:', result)
           throw new Error(result.error || 'Fehler beim Erstellen des Termins')
         }
       } else {
