@@ -91,10 +91,18 @@ CREATE TABLE IF NOT EXISTS public.tenant_memberships (
   UNIQUE(tenant_id, user_id)
 );
 
--- Constraint für erlaubte Rollen
-ALTER TABLE public.tenant_memberships 
-ADD CONSTRAINT check_membership_role 
-CHECK (role IN ('owner', 'admin', 'sales_admin', 'member', 'viewer'));
+-- Constraint für erlaubte Rollen (falls noch nicht vorhanden)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'check_membership_role'
+  ) THEN
+    ALTER TABLE public.tenant_memberships 
+    ADD CONSTRAINT check_membership_role 
+    CHECK (role IN ('owner', 'admin', 'sales_admin', 'member', 'viewer'));
+  END IF;
+END $$;
 
 -- Indizes
 CREATE INDEX IF NOT EXISTS idx_memberships_tenant ON public.tenant_memberships(tenant_id);
@@ -103,6 +111,13 @@ CREATE INDEX IF NOT EXISTS idx_memberships_role ON public.tenant_memberships(rol
 
 -- RLS aktivieren
 ALTER TABLE public.tenant_memberships ENABLE ROW LEVEL SECURITY;
+
+-- Alte Policies löschen (falls vorhanden)
+DROP POLICY IF EXISTS memberships_select ON public.tenant_memberships;
+DROP POLICY IF EXISTS memberships_select_admin ON public.tenant_memberships;
+DROP POLICY IF EXISTS memberships_insert ON public.tenant_memberships;
+DROP POLICY IF EXISTS memberships_update ON public.tenant_memberships;
+DROP POLICY IF EXISTS memberships_delete ON public.tenant_memberships;
 
 -- Policy: User kann nur eigene Memberships sehen
 CREATE POLICY memberships_select ON public.tenant_memberships
