@@ -12,6 +12,7 @@ import { LeadForm } from './forms/LeadForm'
 import { GeocodingButton } from './GeocodingButton'
 import { Modal } from './ui/Modal'
 import { AppointmentForm } from './AppointmentForm'
+import { EnhancedAppointmentForm } from './EnhancedAppointmentForm'
 import { OfferWizard } from './OfferWizard'
 import type { OfferData } from '../types/leads'
 import { AssignLeadDialog } from './AssignLeadDialog'
@@ -833,12 +834,15 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
         </div>
       )}
 
-      {/* Termin-Modal */}
+      {/* Termin-Modal - Enhanced mit Kalender-Integration */}
       <Modal open={showAppointmentModal} onClose={() => setShowAppointmentModal(false)}>
-        <AppointmentForm
-          leadId={lead.id}
-          leadName={lead.name || 'Unbekannt'}
-          onSuccess={handleAppointmentSuccess}
+        <EnhancedAppointmentForm
+          lead={lead}
+          tenantId={activeTenantId || ''}
+          onSuccess={(result) => {
+            handleAppointmentSuccess()
+            setShowAppointmentModal(false)
+          }}
           onCancel={() => setShowAppointmentModal(false)}
         />
       </Modal>
