@@ -87,7 +87,9 @@ export function EnhancedAppointmentForm({ lead, tenantId, onSuccess, onCancel }:
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ein Fehler ist aufgetreten')
+      const errorMsg = err instanceof Error ? err.message : 'Ein Fehler ist aufgetreten'
+      console.error('❌ Appointment creation error:', err)
+      setError(errorMsg)
     } finally {
       setLoading(false)
     }
