@@ -26,10 +26,21 @@ export function useLeadsQuery() {
     refetchOnWindowFocus: true,
     queryFn: async (): Promise<Lead[]> => {
       if (!tenantId) return []
-      let q = supabase.from('leads').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false })
+      const safeColumns = [
+        'id','created_at','updated_at','name','phone','email','address','status_since','lead_status','contact_type','phone_status',
+        'offer_pv','offer_storage','offer_backup','tvp','documentation','doc_link','exported_to_sap','lat','lng',
+        'follow_up','follow_up_date',
+        'next_action','next_action_date','next_action_time','preliminary_offer','lost_reason','offer_created_at','offer_sent_at','offer_amount',
+        'voicemail_left','phone_switched_off','not_reached_count','pv_kwp','storage_kwh',
+        'has_backup','has_ev_charger','has_heating_mgmt','quick_notes','tenant_id','user_id','archived'
+      ].join(',')
+      let q = supabase.from('leads').select(safeColumns).eq('tenant_id', tenantId).order('created_at', { ascending: false })
       if (!isAdmin && user?.id) q = q.eq('user_id', user.id)
       const { data, error } = await q
-      if (error) throw error
+      if (error) {
+        if (import.meta.env.DEV) console.error('[useLeadsQuery] Supabase error loading leads', { message: error.message, details: (error as any).details, hint: (error as any).hint })
+        throw error
+      }
       return (data || []) as Lead[]
     },
   })
@@ -49,10 +60,21 @@ export function useLeadDetailQuery(leadId: string) {
     enabled,
     queryFn: async (): Promise<Lead | null> => {
       if (!tenantId) return null
-      let q = supabase.from('leads').select('*').eq('tenant_id', tenantId).eq('id', leadId)
+      const safeColumns = [
+        'id','created_at','updated_at','name','phone','email','address','status_since','lead_status','contact_type','phone_status',
+        'offer_pv','offer_storage','offer_backup','tvp','documentation','doc_link','exported_to_sap','lat','lng',
+        'follow_up','follow_up_date',
+        'next_action','next_action_date','next_action_time','preliminary_offer','lost_reason','offer_created_at','offer_sent_at','offer_amount',
+        'voicemail_left','phone_switched_off','not_reached_count','pv_kwp','storage_kwh',
+        'has_backup','has_ev_charger','has_heating_mgmt','quick_notes','tenant_id','user_id','archived'
+      ].join(',')
+      let q = supabase.from('leads').select(safeColumns).eq('tenant_id', tenantId).eq('id', leadId)
       if (!isAdmin && user?.id) q = q.eq('user_id', user.id)
       const { data, error } = await q.single()
-      if (error) throw error
+      if (error) {
+        if (import.meta.env.DEV) console.error('[useLeadDetailQuery] Supabase error', { message: error.message, details: (error as any).details, hint: (error as any).hint })
+        throw error
+      }
       return data as Lead
     },
   })

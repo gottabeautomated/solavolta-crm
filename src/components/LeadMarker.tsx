@@ -1,7 +1,7 @@
 import React, { useRef } from 'react'
 import { Marker, Popup, Tooltip } from 'react-leaflet'
 import L from 'leaflet'
-import { getMarkerIcon, getDirectionsUrl, isValidCoordinates, DEFAULT_LAT, DEFAULT_LNG } from '../lib/mapUtils'
+import { getMarkerIcon, getDirectionsUrl, isValidCoordinates, DEFAULT_LAT, DEFAULT_LNG, getStatusColor } from '../lib/mapUtils'
 import { LeadStatusBadge } from './ui/Badge'
 import type { Lead } from '../types/leads'
 
@@ -56,9 +56,29 @@ export function LeadMarker({ lead, onLeadClick, showLabel = false }: LeadMarkerP
           }
         }}
       >
-        <span style={{ whiteSpace: 'nowrap', cursor: 'pointer' }}>{(lead.name || 'Unbekannt').slice(0, 30)}</span>
+        {(() => {
+          const status = (lead as any).archived ? 'Archiviert' : (lead.lead_status || 'Neu')
+          const color = getStatusColor(status)
+          const text = (lead.name || 'Unbekannt').slice(0, 30)
+          return (
+            <span
+              onClick={() => onLeadClick?.(lead)}
+              style={{
+                whiteSpace: 'nowrap',
+                cursor: 'pointer',
+                backgroundColor: color,
+                color: '#fff',
+                padding: '2px 6px',
+                borderRadius: 6,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+              }}
+            >
+              {text}
+            </span>
+          )
+        })()}
       </Tooltip>
-      <Popup closeButton className="lead-popup" maxWidth={320} minWidth={260}>
+      <Popup closeButton className="lead-popup" maxWidth={320} minWidth={260} eventHandlers={{ remove: () => {} }}>
         <div className="p-2 space-y-3">
           <div className="border-b border-gray-200 pb-2">
             <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-1 truncate">

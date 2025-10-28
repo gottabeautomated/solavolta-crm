@@ -28,7 +28,8 @@ type View = 'dashboard' | 'list' | 'detail' | 'map' | 'followups' | 'docs' | 'im
 function Dashboard() {
   const [currentView, setCurrentView] = useState<View>(() => (typeof window !== 'undefined' ? (window.localStorage.getItem('currentView') as View) : null) || 'dashboard')
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(() => (typeof window !== 'undefined' ? window.localStorage.getItem('selectedLeadId') : null))
-  const [visited, setVisited] = useState<Set<View>>(new Set(['dashboard']))
+  // Tracking optional; zurzeit nicht genutzt → entfernt, um Linter zu säubern
+  // const [visited, setVisited] = useState<Set<View>>(new Set(['dashboard']))
   const [showCreateEfu, setShowCreateEfu] = useState(false)
   const { create, refetch } = useEnhancedFollowUps()
 
@@ -97,16 +98,13 @@ function Dashboard() {
     } catch {}
   }, [currentView, selectedLeadId])
 
-  // Track visited views to enable lazy-keep-alive (mount once, keep state)
-  useEffect(() => {
-    setVisited(prev => (prev.has(currentView) ? prev : new Set([...Array.from(prev), currentView])))
-  }, [currentView])
+  // (entfernt) visited-Tracking aktuell nicht verwendet
 
   return (
     <>
       {/* KeepAlive: Hauptcontainer bleibt gemountet, Unter-Views werden verborgen statt unmounted */}
       <KeepAlive active={currentView === 'dashboard' || currentView === 'list'}>
-        <Layout onShowDashboard={handleShowDashboard} onShowLeads={handleShowLeads} onShowMap={handleShowMap} activeView={currentView}>
+        <Layout onShowDashboard={handleShowDashboard} onShowLeads={handleShowLeads} onShowMap={handleShowMap} onShowDocs={handleShowDocs} activeView={currentView}>
           <div className="space-y-6">
             <KeepAlive active={currentView === 'dashboard'}>
               <div className="flex items-center justify-between">
@@ -141,7 +139,7 @@ function Dashboard() {
 
       <KeepAlive active={currentView === 'detail' && !!selectedLeadId}>
         {selectedLeadId && (
-          <Layout onShowDashboard={handleShowDashboard} onShowLeads={handleShowLeads} onShowMap={handleShowMap} activeView="detail">
+          <Layout onShowDashboard={handleShowDashboard} onShowLeads={handleShowLeads} onShowMap={handleShowMap} onShowDocs={handleShowDocs} activeView="detail">
             <LeadDetail leadId={selectedLeadId} onBack={handleBackToList} />
           </Layout>
         )}
@@ -163,13 +161,13 @@ function Dashboard() {
       </KeepAlive>
 
       <KeepAlive active={currentView === 'docs'}>
-        <Layout onShowDashboard={handleShowDashboard} onShowLeads={handleShowLeads} onShowMap={handleShowMap} activeView="dashboard">
+        <Layout onShowDashboard={handleShowDashboard} onShowLeads={handleShowLeads} onShowMap={handleShowMap} onShowDocs={handleShowDocs} activeView="dashboard">
           <DocsPage />
         </Layout>
       </KeepAlive>
 
       <KeepAlive active={currentView === 'followups'}>
-        <Layout onShowDashboard={handleShowDashboard} onShowLeads={handleShowLeads} onShowMap={handleShowMap} activeView="followups">
+        <Layout onShowDashboard={handleShowDashboard} onShowLeads={handleShowLeads} onShowMap={handleShowMap} onShowDocs={handleShowDocs} activeView="followups">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-center mb-4">
               <button

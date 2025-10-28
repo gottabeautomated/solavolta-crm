@@ -21,18 +21,6 @@ interface MapViewProps {
   onLeadClick?: (lead: Lead) => void
 }
 
-function AutoFitBounds({ leads, enabled }: { leads: Lead[]; enabled: boolean }) {
-  const map = useMap()
-  useEffect(() => {
-    if (!enabled) return
-    const pts = leads.filter((l) => l.lat && l.lng)
-    if (pts.length === 0) return
-    const bounds = L.latLngBounds(pts.map((l) => [l.lat!, l.lng!] as [number, number]))
-    map.fitBounds(bounds, { padding: [40, 40] })
-  }, [leads, enabled, map])
-  return null
-}
-
 export function MapView({ onLeadClick }: MapViewProps) {
   const { leads, loading, error, refetch } = useLeads()
   const [statusFilter, setStatusFilter] = useState<LeadStatus | null>(null)
@@ -45,13 +33,30 @@ export function MapView({ onLeadClick }: MapViewProps) {
   const [showHeatmap, setShowHeatmap] = useState(false)
   const [clusteringEnabled, setClusteringEnabled] = useState(true)
   const [showLabels, setShowLabels] = useState(false)
-  const [autoFit, setAutoFit] = useState(true)
   const [filteredLeads, setFilteredLeads] = useState<Lead[]>([])
   const [center, setCenter] = useState<[number, number]>(() => {
-    try { const s = localStorage.getItem('map_center'); return s ? JSON.parse(s) : MAP_CONFIG.center } catch { return MAP_CONFIG.center }
+    try {
+      const preferStored = localStorage.getItem('map_user_pref') === '1'
+      if (preferStored) {
+        const s = localStorage.getItem('map_center')
+        if (s) return JSON.parse(s)
+      }
+    } catch {}
+    return MAP_CONFIG.center
   })
   const [zoom, setZoom] = useState<number>(() => {
-    try { const s = localStorage.getItem('map_zoom'); return s ? JSON.parse(s) : MAP_CONFIG.zoom } catch { return MAP_CONFIG.zoom }
+    try {
+      const preferStored = localStorage.getItem('map_user_pref') === '1'
+      if (preferStored) {
+        const s = localStorage.getItem('map_zoom')
+        if (s) {
+          const z = JSON.parse(s)
+          // harte Kappung: initial nicht näher als Zoom 9 starten
+          return Math.min(Number(z) || MAP_CONFIG.zoom, 9)
+        }
+      }
+    } catch {}
+    return MAP_CONFIG.zoom
   })
   const [bbox, setBbox] = useState<null | { minLat: number; maxLat: number; minLng: number; maxLng: number }>(null)
 
@@ -98,7 +103,11 @@ export function MapView({ onLeadClick }: MapViewProps) {
         const z = m.getZoom()
         setCenter([c.lat, c.lng])
         setZoom(z)
-        try { localStorage.setItem('map_center', JSON.stringify([c.lat, c.lng])); localStorage.setItem('map_zoom', JSON.stringify(z)) } catch {}
+        try {
+          localStorage.setItem('map_center', JSON.stringify([c.lat, c.lng]))
+          localStorage.setItem('map_zoom', JSON.stringify(z))
+          localStorage.setItem('map_user_pref', '1')
+        } catch {}
         // BBOX speichern (Filter wird in Memo angewandt)
         const b = m.getBounds()
         setBbox({ minLat: b.getSouth(), maxLat: b.getNorth(), minLng: b.getWest(), maxLng: b.getEast() })
@@ -107,23 +116,6 @@ export function MapView({ onLeadClick }: MapViewProps) {
         const m = e.target
         const b = m.getBounds()
         setBbox({ minLat: b.getSouth(), maxLat: b.getNorth(), minLng: b.getWest(), maxLng: b.getEast() })
-      },
-      // Auto-Fit subtiler: Nur wenn autoFit aktiv ist und wir in einer „weiten“ Ansicht sind
-      // Falls viele Leads mit Koordinaten da sind, fitBounds beim Initialisieren
-      layeradd: (e) => {
-        if (!autoFit) return
-        try {
-          const m = e.target
-          const pts = filteredByStatus.filter((l) => l.lat && l.lng)
-          if (pts.length > 0) {
-            const bounds = L.latLngBounds(pts.map((l) => [l.lat!, l.lng!] as [number, number]))
-            // Nur anpassen, wenn aktuelle Bounds den Content nicht abdecken
-            const current = m.getBounds()
-            if (!current.contains(bounds)) {
-              m.fitBounds(bounds, { padding: [40, 40], animate: true, duration: 0.25 })
-            }
-          }
-        } catch {}
       }
     })
     return null
@@ -242,8 +234,6 @@ export function MapView({ onLeadClick }: MapViewProps) {
           {/* Heatmap-Layer */}
           <LeadHeatmap leads={filteredByStatus} isVisible={showHeatmap} />
 
-          {/* Auto-Fit Bounds */}
-          <AutoFitBounds leads={filteredByStatus} enabled={autoFit} />
         </MapContainer>
 
         {tilesLoading && (
@@ -272,16 +262,12 @@ export function MapView({ onLeadClick }: MapViewProps) {
               <span>Heatmap</span>
             </label>
             {/* Namen sind jetzt immer sichtbar */}
-            <label className="flex items-center space-x-2 text-sm">
-              <input type="checkbox" checked={autoFit} onChange={(e) => setAutoFit(e.target.checked)} className="rounded" />
-              <span>Auto-Fit</span>
-            </label>
           </div>
           <MapThemeSwitcher currentTheme={currentTheme} onThemeChange={setCurrentTheme} />
         </div>
 
         {/* Filter Toggle Button (Mobile) */}
-        <button onClick={() => setSidebarOpen(true)} className="md:hidden absolute top-4 left-4 z-[1000] bg-white text-gray-700 px-3 py-2 rounded-lg shadow-lg hover:bg-gray-50 transition-colors inline-flex items-center text-sm font-medium">
+        <button onClick={() => setSidebarOpen(true)} className="md:hidden absolute top-4 left-20 z-[1002] bg-white text-gray-700 px-3 py-2 rounded-lg shadow-lg hover:bg-gray-50 transition-colors inline-flex items-center text-sm font-medium">
           <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
           </svg>

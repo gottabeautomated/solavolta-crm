@@ -106,7 +106,7 @@ export function ClusterMarker({ leads, onLeadClick, showLabels = false }: Cluste
         L.DomEvent.on(navBtn, 'click', (ev: any) => {
           L.DomEvent.preventDefault(ev)
           L.DomEvent.stop(ev)
-          const url = getDirectionsUrl(lead.lat, lead.lng, lead.address)
+          const url = getDirectionsUrl(Number(lead.lat as any), Number(lead.lng as any), lead.address || undefined)
           window.open(url, '_blank')
         })
       }

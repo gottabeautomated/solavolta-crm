@@ -19,7 +19,8 @@ import { useAuthContext } from '../contexts/AuthContext'
 import { useAppointments } from '../hooks/useAppointments'
 import { getFileUrl } from '../lib/storage'
 import { StatusHistory } from './status/StatusHistory'
-import type { Lead } from '../types/leads'
+import type { Lead, LeadStatus } from '../types/leads'
+import { LEAD_STATUS_OPTIONS } from '../types/leads'
 
 interface LeadDetailProps {
   leadId: string
@@ -76,7 +77,7 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
         .from('contact_attempts')
         .select('*')
         .eq('lead_id', leadId)
-        .eq('tenant_id', tenantId as any)
+        .eq('tenant_id', tenantId)
         .order('contact_date', { ascending: false })
         .limit(10)
       setAttempts(data || [])
@@ -139,9 +140,12 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
     setSaveMessage(null)
     
     try {
+      const cleaned: Partial<Lead> = { ...updateData }
+      delete (cleaned as Record<string, unknown>).__force_status
+
       const { data, error } = await updateLead({ 
         id: lead.id, 
-        ...updateData 
+        ...cleaned 
       })
 
       if (error) {
@@ -157,7 +161,7 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
         setTimeout(() => setSaveMessage(null), 3000)
       }
     } catch (error) {
-      if (import.meta.env.DEV) console.error('Fehler beim Speichern:', error)
+      console.error('Fehler beim Speichern:', error)
       setSaveMessage(`Fehler beim Speichern: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`)
     } finally {
       setIsSubmitting(false)
@@ -192,15 +196,71 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
       const update: Partial<Lead> = {
         calendar_link: result.appointment.calendar_link,
         // Termin wurde angelegt → Status "Termin vereinbart" (sofortige UI‑Rückmeldung)
-        lead_status: 'Termin vereinbart' as any
+        lead_status: 'Termin vereinbart'
       }
-      await handleSave({ ...update, __force_status: 'Termin vereinbart' } as any)
+      await handleSave(update)
     } else {
       // Auch ohne Kalenderdaten: Termin wurde lokal gespeichert → Status direkt setzen
-      await handleSave({ lead_status: 'Termin vereinbart' as any, __force_status: 'Termin vereinbart' } as any)
+      await handleSave({ lead_status: 'Termin vereinbart' })
     }
     // Liste der Termine aktualisieren
     await loadAppointments()
+  }
+
+  const handleNotReachedAttempt = async (attemptNumber: 1 | 2 | 3, opts?: { mailbox?: boolean; phoneOff?: boolean; confirmEmailOnThird?: boolean }) => {
+    if (!lead) return
+    try {
+      setIsSubmitting(true)
+      const forceStatus = attemptNumber === 1
+        ? ('Nicht erreicht 1x' as any)
+        : attemptNumber === 2
+        ? ('Nicht erreicht 2x' as any)
+        : ('Nicht erreicht 3x' as any)
+
+      await handleSave({
+        phone_status: 'nicht_erreichbar' as any,
+        not_reached_count: attemptNumber as any,
+        __force_status: forceStatus as any,
+        __trigger_third_email: attemptNumber === 3 ? (opts?.confirmEmailOnThird === true) : undefined
+      } as any)
+
+      // Kontaktversuch protokollieren + nächste Wiedervorlage (für Anzeige im Log)
+      try {
+        const tenantId = typeof window !== 'undefined' ? window.localStorage.getItem('activeTenantId') : null
+        if (tenantId) {
+          const now = new Date()
+          const businessDays = attemptNumber === 1 ? 1 : attemptNumber === 2 ? 3 : 0
+          // einfache Werktagsberechnung lokal (Mo-Fr)
+          const calcNext = (date: Date, days: number) => {
+            const result = new Date(date)
+            let remaining = days
+            while (remaining > 0) {
+              result.setDate(result.getDate() + 1)
+              const d = result.getDay()
+              if (d !== 0 && d !== 6) remaining--
+            }
+            return result
+          }
+          const nextAttempt = calcNext(now, businessDays)
+          await supabase
+            .from('contact_attempts')
+            .insert({
+              tenant_id: tenantId as any,
+              lead_id: lead.id,
+              contact_date: now.toISOString(),
+              reached: false,
+              mailbox_left: !!opts?.mailbox,
+              phone_off: !!opts?.phoneOff,
+              notes: attemptNumber === 3 ? '3x nicht erreicht – Auto-E-Mail wird ausgelöst' : `${attemptNumber}x nicht erreicht`,
+              next_attempt_date: businessDays > 0 ? nextAttempt.toISOString().slice(0,10) : null
+            })
+        }
+      } catch {}
+
+      await loadAttempts()
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -230,7 +290,7 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
           </div>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center gap-2">
           {!isEditing && (
             <IconButton
               icon={
@@ -244,48 +304,83 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
               Bearbeiten
             </IconButton>
           )}
+
           {!isEditing && (
             <button
               onClick={async () => {
                 if (!lead) return
-                await handleSave({ archived: !(lead as any).archived } as any)
+                await handleSave({ archived: !(lead.archived ?? false) })
               }}
-              className={`inline-flex items-center px-3 py-2 text-sm rounded ${ (lead as any).archived ? 'bg-gray-200 text-gray-800 hover:bg-gray-300' : 'bg-gray-700 text-white hover:bg-gray-800'}`}
+              className={`h-9 inline-flex items-center px-3 text-sm rounded border ${ (lead.archived ?? false) ? 'border-gray-300 bg-white text-gray-800 hover:bg-gray-50' : 'border-gray-700 bg-gray-700 text-white hover:bg-gray-800'}`}
             >
-              {(lead as any).archived ? 'Aus Archiv holen' : 'Archivieren'}
+              {(lead.archived ?? false) ? 'Aus Archiv holen' : 'Archivieren'}
             </button>
           )}
+
           {!isEditing && (
             <button
               onClick={() => setShowOfferWizard(true)}
-              className="inline-flex items-center px-3 py-2 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700"
+              className="h-9 inline-flex items-center px-3 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700"
             >
               Angebot erstellen
             </button>
           )}
+
           {!isEditing && canAssign && (
             <button
               onClick={() => setShowAssignDialog(true)}
-              className="inline-flex items-center px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+              className="h-9 inline-flex items-center px-3 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
             >
               Lead zuordnen
             </button>
           )}
-          
+
           {lead.follow_up && (
             <Badge variant="warning">Follow-up erforderlich</Badge>
           )}
-                      <LeadStatusBadge status={lead.lead_status as import('../types/leads').LeadStatus} />
-                      {lead.lead_status === 'Verloren' && lead.lost_reason && (
-                        <div className="mt-2">
-                          <label className="text-sm font-medium text-gray-500">Grund für Verlust</label>
-                          <p className="text-sm text-gray-900">{lead.lost_reason}</p>
-                        </div>
-                      )}
+
+          {/* Kompakter Kontaktversuch-Zähler im Header */}
+          {!isEditing && (
+            <div className="ml-1">
+              <NotReachedCounter
+                count={lead.not_reached_count ?? 0}
+                onClick={async (next, action) => {
+                  if (next === 3) {
+                    const confirmEmail = window.confirm('3x nicht erreicht. Soll eine Kontakt-E-Mail gesendet werden?')
+                    await handleNotReachedAttempt(3, { mailbox: action==='mailbox', phoneOff: action==='phone_off', confirmEmailOnThird: confirmEmail })
+                  } else if (next === 2) {
+                    await handleNotReachedAttempt(2, { mailbox: action==='mailbox', phoneOff: action==='phone_off' })
+                  } else {
+                    await handleNotReachedAttempt(1, { mailbox: action==='mailbox', phoneOff: action==='phone_off' })
+                  }
+                }}
+              />
+            </div>
+          )}
+
+          {/* Kompakter Status-Select */}
+          {!isEditing && (
+            <select
+              className="h-9 text-sm border rounded px-2"
+              value={lead.lead_status ?? ''}
+              onChange={async (e) => {
+                const newStatus = e.target.value as LeadStatus
+                if (newStatus && newStatus !== lead.lead_status) {
+                  await handleSave({ lead_status: newStatus })
+                }
+              }}
+            >
+              <option value="" disabled>Status wählen…</option>
+              {LEAD_STATUS_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          )}
+
           {!isEditing && (
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="inline-flex items-center px-3 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+              className="h-9 inline-flex items-center px-3 bg-red-600 text-white text-sm rounded hover:bg-red-700"
             >
               Löschen
             </button>
@@ -330,7 +425,7 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
           <div className="text-sm text-gray-900 space-y-1">
             <div>
               <span className="text-gray-500">Status: </span>
-              <LeadStatusBadge status={lead.lead_status as import('../types/leads').LeadStatus} />
+              <LeadStatusBadge status={lead.lead_status as LeadStatus} />
             </div>
             <div>
               <span className="text-gray-500">Telefonstatus: </span>
@@ -338,26 +433,26 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
             </div>
             <div>
               <span className="text-gray-500">Nicht erreicht: </span>
-              <span>{(lead as any).not_reached_count || 0}x</span>
+              <span>{lead.not_reached_count ?? 0}x</span>
             </div>
-            {(lead as any).appointment_date && (
+            {lead.appointment_date && (
               <div>
                 <span className="text-gray-500">Termin: </span>
                 <span>
-                  {new Date((lead as any).appointment_date).toLocaleDateString('de-DE')}
-                  {lead.appointment_time ? `, ${(lead as any).appointment_time}` : ''}
-                  {(lead as any).appointment_channel ? ` — ${((lead as any).appointment_channel === 'vor_ort') ? 'Vor Ort' : ((lead as any).appointment_channel === 'telefon') ? 'Telefon' : 'Online'}` : ''}
-                  {(lead as any).appointment_completed ? ' (durchgeführt)' : ''}
+                  {new Date(lead.appointment_date).toLocaleDateString('de-DE')}
+                  {lead.appointment_time ? `, ${lead.appointment_time}` : ''}
+                  {lead.appointment_channel ? ` — ${(lead.appointment_channel === 'vor_ort') ? 'Vor Ort' : (lead.appointment_channel === 'telefon') ? 'Telefon' : 'Online'}` : ''}
+                  {lead.appointment_completed ? ' (durchgeführt)' : ''}
                 </span>
               </div>
             )}
-            {((lead as any).offer_amount || (lead as any).offer_link) && (
+            {(lead.offer_amount || lead.offer_link) && (
               <div>
                 <span className="text-gray-500">Angebot: </span>
                 <span>
-                  {(lead as any).offer_amount ? `${Number((lead as any).offer_amount).toLocaleString('de-AT', { style: 'currency', currency: 'EUR' })}` : ''}
-                  {((lead as any).offer_amount && (lead as any).offer_link) ? ' • ' : ''}
-                  {(lead as any).offer_link ? <a className="text-blue-600 hover:text-blue-700" href={(lead as any).offer_link} target="_blank" rel="noreferrer">Link</a> : ''}
+                  {lead.offer_amount ? `${Number(lead.offer_amount).toLocaleString('de-AT', { style: 'currency', currency: 'EUR' })}` : ''}
+                  {(lead.offer_amount && lead.offer_link) ? ' • ' : ''}
+                  {lead.offer_link ? <a className="text-blue-600 hover:text-blue-700" href={lead.offer_link} target="_blank" rel="noreferrer">Link</a> : ''}
                 </span>
               </div>
             )}
@@ -373,29 +468,29 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <span className="text-gray-500">PV kWp: </span>
-              <span>{(lead as any).pv_kwp ?? '-'}</span>
+              <span>{lead.pv_kwp ?? '-'}</span>
             </div>
             <div>
               <span className="text-gray-500">Speicher kWh: </span>
-              <span>{(lead as any).storage_kwh ?? '-'}</span>
+              <span>{lead.storage_kwh ?? '-'}</span>
             </div>
             <div>
               <span className="text-gray-500">Notstrom: </span>
-              <span>{(lead as any).has_backup ? 'Ja' : 'Nein'}</span>
+              <span>{lead.has_backup ? 'Ja' : 'Nein'}</span>
             </div>
             <div>
               <span className="text-gray-500">Ladestation: </span>
-              <span>{(lead as any).has_ev_charger ? 'Ja' : 'Nein'}</span>
+              <span>{lead.has_ev_charger ? 'Ja' : 'Nein'}</span>
             </div>
             <div>
               <span className="text-gray-500">Heizungsmanagement: </span>
-              <span>{(lead as any).has_heating_mgmt ? 'Ja' : 'Nein'}</span>
+              <span>{lead.has_heating_mgmt ? 'Ja' : 'Nein'}</span>
             </div>
           </div>
-          {(lead as any).quick_notes && (
+          {lead.quick_notes && (
             <div className="mt-2 text-sm text-gray-900">
               <span className="text-gray-500">Notizen: </span>
-              <span>{(lead as any).quick_notes}</span>
+              <span>{lead.quick_notes}</span>
             </div>
           )}
         </CardSection>
@@ -404,9 +499,9 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
       <Card title="Angebote & Leistungen">
         <CardSection title="Übersicht">
           {/* Anzeige aller Offers aus JSON */}
-          {(lead as any).offers && (lead as any).offers.length > 0 ? (
+          {lead.offers && lead.offers.length > 0 ? (
             <div className="space-y-2">
-              {(lead as any).offers.map((o: OfferData, idx: number) => (
+              {lead.offers.map((o: OfferData, idx: number) => (
                 <OfferRow key={idx} offer={o} />
               ))}
             </div>
@@ -467,6 +562,22 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
                     ) : (
                       <p className="text-sm text-gray-900">-</p>
                     )}
+                    {lead.phone && (
+                      <NotReachedCounter
+                        count={lead.not_reached_count ?? 0}
+                        disabled={isSubmitting}
+                        onClick={async (next, action) => {
+                          if (next === 3) {
+                            const confirmEmail = window.confirm('3x nicht erreicht. Soll eine Kontakt-E-Mail gesendet werden?')
+                            await handleNotReachedAttempt(3, { mailbox: action==='mailbox', phoneOff: action==='phone_off', confirmEmailOnThird: confirmEmail })
+                          } else if (next === 2) {
+                            await handleNotReachedAttempt(2, { mailbox: action==='mailbox', phoneOff: action==='phone_off' })
+                          } else {
+                            await handleNotReachedAttempt(1, { mailbox: action==='mailbox', phoneOff: action==='phone_off' })
+                          }
+                        }}
+                      />
+                    )}
                   </div>
                   
                   <div>
@@ -514,7 +625,27 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
                   <div>
                     <label className="text-sm font-medium text-gray-500">Aktueller Status</label>
                     <div className="mt-1">
-                      <LeadStatusBadge status={lead.lead_status as import('../types/leads').LeadStatus} />
+                      <LeadStatusBadge status={lead.lead_status as LeadStatus} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Status ändern</label>
+                    <div className="mt-1">
+                      <select
+                        className="text-sm border rounded px-2 py-1"
+                        value={lead.lead_status ?? ''}
+                        onChange={async (e) => {
+                          const newStatus = e.target.value as LeadStatus
+                          if (newStatus && newStatus !== lead.lead_status) {
+                            await handleSave({ lead_status: newStatus })
+                          }
+                        }}
+                      >
+                        <option value="" disabled>Status wählen…</option>
+                        {LEAD_STATUS_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                   
@@ -594,9 +725,9 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
             <Card title="Angebote & Leistungen">
               <CardSection title="Übersicht">
                 {/* Anzeige aller Offers aus JSON */}
-                {(lead as any).offers && (lead as any).offers.length > 0 ? (
+                {lead.offers && lead.offers.length > 0 ? (
                   <div className="space-y-2">
-                    {(lead as any).offers.map((o: OfferData, idx: number) => (
+                    {lead.offers.map((o: OfferData, idx: number) => (
                       <OfferRow key={idx} offer={o} />
                     ))}
                   </div>
@@ -680,15 +811,15 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
                 <p className="text-sm font-mono text-gray-900">{lead.id}</p>
               </div>
               
-              {(lead as any).lat && (lead as any).lng && (
+              {lead.lat && lead.lng && (
                 <div>
                   <label className="text-sm font-medium text-gray-500">Koordinaten</label>
                   <p className="text-sm font-mono text-gray-900">
-                    {Number((lead as any).lat).toFixed(6)}, {Number((lead as any).lng).toFixed(6)}
+                    {Number(lead.lat).toFixed(6)}, {Number(lead.lng).toFixed(6)}
                   </p>
                 </div>
               )}
-              {(!(lead as any).lat || !(lead as any).lng) && (
+              {(!lead.lat || !lead.lng) && (
                 <div>
                   <label className="text-sm font-medium text-gray-500">Geocoding</label>
                   <p className="text-sm text-gray-900">
@@ -729,9 +860,9 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
         <div className="p-2">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Lead wirklich löschen?</h3>
           <p className="text-sm text-gray-600 mb-2">Dieser Vorgang kann nicht rückgängig gemacht werden.</p>
-          {(appointments.length > 0 || (lead as any).offers?.length > 0) && (
+          {(appointments.length > 0 || (lead.offers?.length ?? 0) > 0) && (
             <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
-              Achtung: Es existieren {appointments.length} Termine und {(lead as any).offers?.length || 0} Angebote. Bitte erneut bestätigen.
+              Achtung: Es existieren {appointments.length} Termine und {lead.offers?.length || 0} Angebote. Bitte erneut bestätigen.
             </div>
           )}
           <div className="flex items-center justify-end gap-2">
@@ -743,7 +874,7 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
             </button>
             <button
               onClick={async () => {
-                const needsSecond = (appointments.length > 0 || (lead as any).offers?.length > 0)
+                const needsSecond = (appointments.length > 0 || (lead.offers?.length ?? 0) > 0)
                 if (needsSecond) {
                   const ok = window.confirm('Es gibt verknüpfte Daten (Termine/Angebote). Wirklich endgültig löschen?')
                   if (!ok) return
@@ -808,4 +939,28 @@ function OfferRow({ offer }: { offer: OfferData }) {
   )
 } 
 
-//
+function NotReachedCounter({ count, disabled, onClick }: { count: number; disabled?: boolean; onClick: (next: 1|2|3, action: 'none'|'mailbox'|'phone_off') => void }) {
+  const [open, setOpen] = React.useState(false)
+  const next = Math.min(3, Math.max(1, (count || 0) + 1)) as 1|2|3
+  const color = next === 1 ? 'bg-yellow-100 text-yellow-800 border-yellow-300' : next === 2 ? 'bg-yellow-200 text-yellow-900 border-yellow-400' : 'bg-orange-200 text-orange-900 border-orange-400'
+  return (
+    <div className="relative inline-block">
+      <button
+        disabled={disabled}
+        onClick={() => setOpen(prev => !prev)}
+        className={`px-2 py-1 text-xs rounded border ${color} disabled:opacity-50`}
+        title="Kontaktversuch zählen"
+      >
+        {count ? `${count}x` : '0x'}
+      </button>
+      {open && (
+        <div className="absolute z-10 mt-1 w-40 bg-white border rounded shadow text-xs">
+          <div className="px-2 py-1 text-gray-600">Nächster Versuch: {next}x</div>
+          <button className="w-full text-left px-3 py-2 hover:bg-gray-100" onClick={() => { setOpen(false); onClick(next, 'none') }}>Nur zählen</button>
+          <button className="w-full text-left px-3 py-2 hover:bg-gray-100" onClick={() => { setOpen(false); onClick(next, 'mailbox') }}>Mailbox besprochen</button>
+          <button className="w-full text-left px-3 py-2 hover:bg-gray-100" onClick={() => { setOpen(false); onClick(next, 'phone_off') }}>Telefon aus</button>
+        </div>
+      )}
+    </div>
+  )
+}

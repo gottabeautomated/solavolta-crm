@@ -33,12 +33,29 @@ export function useLeadMutations() {
   const update = useMutation({
     mutationKey: ['lead','update', tenantId],
     mutationFn: async (payload: UpdateLeadInput): Promise<Lead> => {
+      // Legacy-Felder entfernen, um 400er bei Schema-Cache zu vermeiden
+      const sanitized: any = { ...payload }
+      // follow_up Felder jetzt wieder erlaubt – nicht entfernen
+      delete sanitized.appointment_time
+      delete sanitized.appointment_date
+      delete sanitized.appointment_channel
+      delete sanitized.appointment_completed
+
+      const safeColumns = [
+        'id','created_at','updated_at','name','phone','email','address','status_since','lead_status','contact_type','phone_status',
+        'offer_pv','offer_storage','offer_backup','tvp','documentation','doc_link','offers','exported_to_sap','lat','lng',
+        'follow_up','follow_up_date',
+        'next_action','next_action_date','next_action_time','preliminary_offer','lost_reason','offer_created_at','offer_sent_at','offer_amount','offer_link',
+        'won_at','lost_competitor','paused_until','pause_reason','voicemail_left','phone_switched_off','not_reached_count','pv_kwp','storage_kwh',
+        'has_backup','has_ev_charger','has_heating_mgmt','quick_notes','tenant_id','user_id','archived'
+      ].join(',')
+
       const { data, error } = await supabase
         .from('leads')
-        .update(payload)
+        .update(sanitized)
         .eq('id', payload.id)
         .eq('tenant_id', tenantId)
-        .select('*').single()
+        .select(safeColumns).single()
       if (error) throw error
       return data as Lead
     },

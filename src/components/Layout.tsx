@@ -71,10 +71,11 @@ interface LayoutProps {
   onShowDashboard?: () => void
   onShowLeads?: () => void
   onShowMap?: () => void
-  activeView?: 'dashboard' | 'list' | 'map' | 'followups' | 'detail' | 'legal'
+  activeView?: 'dashboard' | 'list' | 'map' | 'followups' | 'detail' | 'legal' | 'docs' | 'impressum' | 'datenschutz' | 'agb'
+  onShowDocs?: () => void
 }
 
-export function Layout({ children, onShowDashboard, onShowLeads, onShowMap, activeView = 'dashboard' }: LayoutProps) {
+export function Layout({ children, onShowDashboard, onShowLeads, onShowMap, onShowDocs, activeView = 'dashboard' }: LayoutProps) {
   const { user, signOut, tenants, activeTenantId, setActiveTenantId } = useAuthContext()
   const { notifications, markAsRead, markAllAsRead } = useNotifications()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -120,9 +121,12 @@ export function Layout({ children, onShowDashboard, onShowLeads, onShowMap, acti
                 >
                   Karte
                 </button>
-                <a href="#/docs" className={`px-3 py-2 rounded-md text-sm font-medium ${activeView==='dashboard' ? 'text-gray-500 hover:text-gray-700' : 'text-gray-500 hover:text-gray-700'}`}>
+                <button
+                  onClick={() => { if (onShowDocs) onShowDocs(); else window.location.hash = '#/docs' }}
+                  className={`px-3 py-2 rounded-md text-sm font-medium ${activeView==='docs' ? 'text-gray-900 bg-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
+                >
                   Handbuch
-                </a>
+                </button>
               </nav>
 
               {/* Tenant Switcher (nur anzeigen, wenn mehr als 1 Tenant) */}
@@ -201,6 +205,10 @@ export function Layout({ children, onShowDashboard, onShowLeads, onShowMap, acti
               onClick={onShowMap}
               className={`px-3 py-2 rounded-md text-sm font-medium ${activeView==='map' ? 'text-gray-900 bg-gray-100' : 'text-gray-500'}`}
             >Karte</button>
+            <button
+              onClick={() => { if (onShowDocs) onShowDocs(); else window.location.hash = '#/docs' }}
+              className={`px-3 py-2 rounded-md text-sm font-medium ${activeView==='docs' ? 'text-gray-900 bg-gray-100' : 'text-gray-500'}`}
+            >Handbuch</button>
           </div>
         </div>
       </header>

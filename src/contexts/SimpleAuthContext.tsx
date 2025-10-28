@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dbg('Lade Tenants für', currentUser.id)
       // Schritt 1: Memberships ohne Join (robust gegen fehlende/mehrdeutige FK-Constraints)
       let { data: memberships, error: membErr } = await supabase
-        .from('memberships')
+        .from('tenant_memberships')
         .select('tenant_id, role')
         .eq('user_id', currentUser.id)
       if (membErr) {
@@ -106,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           try { await supabase.auth.refreshSession() } catch {}
           await new Promise(r => setTimeout(r, 250))
           const retry = await supabase
-            .from('memberships')
+            .from('tenant_memberships')
             .select('tenant_id, role')
             .eq('user_id', currentUser.id)
           memberships = retry.data as any

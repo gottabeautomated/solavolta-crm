@@ -21,16 +21,25 @@ export function DiagnosticPanel({ inline = false }: { inline?: boolean }) {
     try {
       const sess = await supabase.auth.getSession()
       items.push({ title: 'Session', data: sess.data })
-      const me = await supabase.from<Row>('memberships').select('tenant_id,role')
+      const me = await supabase.from<Row, Row>('memberships').select('tenant_id,role')
       items.push({ title: 'Memberships', data: me.data, error: me.error })
-      const ts = await supabase.from<Row>('tenants').select('id,name')
+      const ts = await supabase.from<Row, Row>('tenants').select('id,name')
       items.push({ title: 'Tenants', data: ts.data, error: ts.error })
-      const viewToday = await supabase.from<Row>('v_today_tasks').select('*').limit(1)
+      const viewToday = await supabase.from<Row, Row>('v_today_tasks').select('*').limit(1)
       items.push({ title: 'View v_today_tasks', data: viewToday.data, error: viewToday.error })
-      const existsTenants = await supabase.from<Row>('information_schema.tables').select('table_name').eq('table_schema', 'public').in('table_name', ['tenants','memberships','invitations','leads','appointments']).limit(10)
+      const existsTenants = await supabase
+        .from<Row, Row>('information_schema.tables')
+        .select('table_name')
+        .eq('table_schema', 'public')
+        .in('table_name', ['tenants','memberships','invitations','leads','appointments'])
+        .limit(10)
       items.push({ title: 'Tables exist', data: existsTenants.data, error: existsTenants.error })
-      const who = await supabase.rpc('noop').catch(()=>({}))
-      items.push({ title: 'RPC noop (optional)', data: who })
+      try {
+        const who = await (supabase as any).rpc('noop')
+        items.push({ title: 'RPC noop (optional)', data: who })
+      } catch (e) {
+        items.push({ title: 'RPC noop (optional)', error: e })
+      }
     } catch (e) {
       items.push({ title: 'Diagnostics error', error: e })
     } finally {
@@ -45,7 +54,7 @@ export function DiagnosticPanel({ inline = false }: { inline?: boolean }) {
   }
 
   const setFirstTenant = async () => {
-    const { data } = await supabase.from('memberships').select('tenant_id').limit(1)
+    const { data } = await supabase.from('tenant_memberships').select('tenant_id').limit(1)
     const id = data?.[0]?.tenant_id as string | undefined
     if (id) setActiveTenantId(id)
   }

@@ -1,337 +1,558 @@
--- Multi-tenant Setup: Tenants, Memberships, Invitations, RLS-Policies
--- Ausführen im Supabase SQL Editor (public Schema, außer Storage-Policies)
+-- =====================================================
+-- MULTI-TENANT SETUP
+-- =====================================================
+-- Erstellt die Tenant-Struktur für mandantenfähige Applikation
 
-create extension if not exists pgcrypto;
-
-do $$ begin
-  if not exists (select 1 from pg_type where typname='tenant_status') then
-    create type tenant_status as enum ('active','inactive');
-  end if;
-end $$;
-
--- 1) Tenants & Memberships
-create table if not exists public.tenants (
-  id         uuid primary key default gen_random_uuid(),
-  name       text not null unique,
-  domain     text unique,
-  status     tenant_status not null default 'active',
-  created_at timestamptz not null default now()
+-- 1. TENANTS TABELLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.tenants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  settings jsonb DEFAULT '{}'::jsonb
 );
 
-create table if not exists public.memberships (
-  tenant_id  uuid not null references public.tenants(id) on delete cascade,
-  user_id    uuid not null references auth.users(id)     on delete cascade,
-  role       text not null default 'agent' check (role in ('owner','admin','agent','viewer')),
-  created_at timestamptz not null default now(),
-  primary key (tenant_id, user_id)
+-- Spalten hinzufügen falls Tabelle bereits existiert
+DO $$ 
+BEGIN
+  -- slug hinzufügen (falls nicht vorhanden)
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'tenants' 
+    AND column_name = 'slug'
+  ) THEN
+    ALTER TABLE public.tenants ADD COLUMN slug text;
+  END IF;
+  
+  -- settings hinzufügen (falls nicht vorhanden)
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'tenants' 
+    AND column_name = 'settings'
+  ) THEN
+    ALTER TABLE public.tenants ADD COLUMN settings jsonb DEFAULT '{}'::jsonb;
+  END IF;
+  
+  -- updated_at hinzufügen (falls nicht vorhanden)
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'tenants' 
+    AND column_name = 'updated_at'
+  ) THEN
+    ALTER TABLE public.tenants ADD COLUMN updated_at timestamptz DEFAULT now();
+  END IF;
+END $$;
+
+-- Unique Constraint für slug hinzufügen (falls noch nicht vorhanden)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'tenants_slug_key'
+  ) THEN
+    ALTER TABLE public.tenants ADD CONSTRAINT tenants_slug_key UNIQUE (slug);
+  END IF;
+END $$;
+
+-- Index für schnelle Slug-Suche
+CREATE INDEX IF NOT EXISTS idx_tenants_slug ON public.tenants(slug);
+
+-- Trigger für updated_at
+CREATE OR REPLACE FUNCTION update_tenants_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS tenants_updated_at_trigger ON public.tenants;
+CREATE TRIGGER tenants_updated_at_trigger
+  BEFORE UPDATE ON public.tenants
+  FOR EACH ROW
+  EXECUTE FUNCTION update_tenants_updated_at();
+
+-- RLS aktivieren (Policy wird später nach tenant_memberships erstellt)
+ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
+
+-- 2. TENANT_MEMBERSHIPS TABELLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.tenant_memberships (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role text NOT NULL DEFAULT 'member',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(tenant_id, user_id)
 );
-create index if not exists idx_memberships_tenant_id on public.memberships(tenant_id);
-create index if not exists idx_memberships_user_id   on public.memberships(user_id);
 
-alter table public.memberships enable row level security;
+-- Constraint für erlaubte Rollen
+ALTER TABLE public.tenant_memberships 
+ADD CONSTRAINT check_membership_role 
+CHECK (role IN ('owner', 'admin', 'sales_admin', 'member', 'viewer'));
 
-do $$ begin
-  if not exists (select 1 from pg_policies where tablename='memberships' and policyname='memberships_select') then
-    create policy memberships_select on public.memberships
-      for select using (user_id = auth.uid());
-  end if;
-  if not exists (select 1 from pg_policies where tablename='memberships' and policyname='memberships_insert') then
-    create policy memberships_insert on public.memberships
-      for insert with check (user_id = auth.uid());
-  end if;
-end $$;
+-- Indizes
+CREATE INDEX IF NOT EXISTS idx_memberships_tenant ON public.tenant_memberships(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_memberships_user ON public.tenant_memberships(user_id);
+CREATE INDEX IF NOT EXISTS idx_memberships_role ON public.tenant_memberships(role);
 
-alter table public.tenants enable row level security;
+-- RLS aktivieren
+ALTER TABLE public.tenant_memberships ENABLE ROW LEVEL SECURITY;
 
-do $$ begin
-  if not exists (select 1 from pg_policies where tablename='tenants' and policyname='tenants_select_on_membership') then
-    create policy tenants_select_on_membership on public.tenants
-      for select using (
-        exists (select 1 from public.memberships m where m.tenant_id = tenants.id and m.user_id = auth.uid())
-      );
-  end if;
-end $$;
+-- Policy: User kann nur eigene Memberships sehen
+CREATE POLICY memberships_select ON public.tenant_memberships
+  FOR SELECT
+  USING (user_id = auth.uid());
 
--- 2) tenant_id in Fach-Tabellen
--- Leads
-alter table public.leads add column if not exists tenant_id uuid;
-do $$ begin
-  if exists (select 1 from public.tenants) then
-    update public.leads set tenant_id = (select id from public.tenants order by created_at asc limit 1) where tenant_id is null;
-  end if;
-end $$;
-alter table public.leads alter column tenant_id set not null;
-do $$ begin
-  if not exists (select 1 from pg_constraint where conname='leads_tenant_id_fkey') then
-    alter table public.leads add constraint leads_tenant_id_fkey foreign key (tenant_id)
-      references public.tenants(id) on update cascade on delete restrict;
-  end if;
-end $$;
-create index if not exists idx_leads_tenant_id on public.leads(tenant_id);
-alter table public.leads enable row level security;
+-- Policy: Owner/Admin kann alle Memberships des Tenants sehen
+CREATE POLICY memberships_select_admin ON public.tenant_memberships
+  FOR SELECT
+  USING (
+    tenant_id IN (
+      SELECT tenant_id FROM public.tenant_memberships 
+      WHERE user_id = auth.uid() 
+      AND role IN ('owner', 'admin')
+    )
+  );
 
--- Optional: Vorherige, zu breite Policies entfernen
-do $$ begin
-  if exists (select 1 from pg_policies where tablename='leads' and policyname='Leads sind für alle authentifizierten User sichtbar') then
-    drop policy "Leads sind für alle authentifizierten User sichtbar" on public.leads;
-  end if;
-  if exists (select 1 from pg_policies where tablename='leads' and policyname='Users can view own leads') then
-    drop policy "Users can view own leads" on public.leads;
-  end if;
-  if exists (select 1 from pg_policies where tablename='leads' and policyname='Users can insert own leads') then
-    drop policy "Users can insert own leads" on public.leads;
-  end if;
-  if exists (select 1 from pg_policies where tablename='leads' and policyname='Users can update own leads') then
-    drop policy "Users can update own leads" on public.leads;
-  end if;
-  if exists (select 1 from pg_policies where tablename='leads' and policyname='Users can delete own leads') then
-    drop policy "Users can delete own leads" on public.leads;
-  end if;
-end $$;
+-- Policy: Owner/Admin kann Memberships erstellen
+CREATE POLICY memberships_insert ON public.tenant_memberships
+  FOR INSERT
+  WITH CHECK (
+    tenant_id IN (
+      SELECT tenant_id FROM public.tenant_memberships 
+      WHERE user_id = auth.uid() 
+      AND role IN ('owner', 'admin')
+    )
+  );
 
-do $$ begin
-  if not exists (select 1 from pg_policies where tablename='leads' and policyname='leads_select') then
-    create policy leads_select on public.leads
-      for select using (
-        exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = leads.tenant_id)
-      );
-  end if;
-  if not exists (select 1 from pg_policies where tablename='leads' and policyname='leads_insert') then
-    create policy leads_insert on public.leads
-      for insert with check (
-        exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = leads.tenant_id)
-      );
-  end if;
-  if not exists (select 1 from pg_policies where tablename='leads' and policyname='leads_update') then
-    create policy leads_update on public.leads
-      for update using (
-        exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = leads.tenant_id)
-      ) with check (
-        exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = leads.tenant_id)
-      );
-  end if;
-  if not exists (select 1 from pg_policies where tablename='leads' and policyname='leads_delete') then
-    create policy leads_delete on public.leads
-      for delete using (
-        exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = leads.tenant_id)
-      );
-  end if;
-end $$;
+-- Policy: Owner/Admin kann Memberships ändern
+CREATE POLICY memberships_update ON public.tenant_memberships
+  FOR UPDATE
+  USING (
+    tenant_id IN (
+      SELECT tenant_id FROM public.tenant_memberships 
+      WHERE user_id = auth.uid() 
+      AND role IN ('owner', 'admin')
+    )
+  );
 
--- Appointments
-alter table public.appointments add column if not exists tenant_id uuid;
-update public.appointments a set tenant_id = l.tenant_id from public.leads l where l.id = a.lead_id and a.tenant_id is null;
-alter table public.appointments alter column tenant_id set not null;
-do $$ begin
-  if not exists (select 1 from pg_constraint where conname='appointments_tenant_id_fkey') then
-    alter table public.appointments add constraint appointments_tenant_id_fkey foreign key (tenant_id)
-      references public.tenants(id) on update cascade on delete restrict;
-  end if;
-end $$;
-create index if not exists idx_appointments_tenant_id on public.appointments(tenant_id);
-alter table public.appointments enable row level security;
-do $$ begin
-  perform 1; -- no-op block to keep DO consistent
-end $$;
-do $$ begin
-  if not exists (select 1 from pg_policies where tablename='appointments' and policyname='appointments_select') then
-    create policy appointments_select on public.appointments
-      for select using (
-        exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = appointments.tenant_id)
-      );
-  end if;
-  if not exists (select 1 from pg_policies where tablename='appointments' and policyname='appointments_insert') then
-    create policy appointments_insert on public.appointments
-      for insert with check (
-        exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = appointments.tenant_id)
-      );
-  end if;
-  if not exists (select 1 from pg_policies where tablename='appointments' and policyname='appointments_update') then
-    create policy appointments_update on public.appointments
-      for update using (
-        exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = appointments.tenant_id)
-      );
-  end if;
-  if not exists (select 1 from pg_policies where tablename='appointments' and policyname='appointments_delete') then
-    create policy appointments_delete on public.appointments
-      for delete using (
-        exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = appointments.tenant_id)
-      );
-  end if;
-end $$;
+-- Policy: Owner/Admin kann Memberships löschen (außer eigene Owner-Rolle)
+CREATE POLICY memberships_delete ON public.tenant_memberships
+  FOR DELETE
+  USING (
+    tenant_id IN (
+      SELECT tenant_id FROM public.tenant_memberships 
+      WHERE user_id = auth.uid() 
+      AND role IN ('owner', 'admin')
+    )
+    AND NOT (user_id = auth.uid() AND role = 'owner')
+  );
 
--- Status Changes
-alter table public.status_changes add column if not exists tenant_id uuid;
-update public.status_changes s set tenant_id = l.tenant_id from public.leads l where l.id = s.lead_id and s.tenant_id is null;
-alter table public.status_changes alter column tenant_id set not null;
-do $$ begin
-  if not exists (select 1 from pg_constraint where conname='status_changes_tenant_id_fkey') then
-    alter table public.status_changes add constraint status_changes_tenant_id_fkey foreign key (tenant_id)
-      references public.tenants(id) on update cascade on delete restrict;
-  end if;
-end $$;
-create index if not exists idx_status_changes_tenant_id on public.status_changes(tenant_id);
-alter table public.status_changes enable row level security;
-do $$ begin
-  -- Drop alte Policies, falls vorhanden
-  if exists (select 1 from pg_policies where tablename='status_changes' and policyname='Users can view status changes for leads they have access to') then
-    drop policy "Users can view status changes for leads they have access to" on public.status_changes;
-  end if;
-  if exists (select 1 from pg_policies where tablename='status_changes' and policyname='Users can insert status changes for their leads') then
-    drop policy "Users can insert status changes for their leads" on public.status_changes;
-  end if;
-end $$;
-do $$ begin
-  if not exists (select 1 from pg_policies where tablename='status_changes' and policyname='status_changes_select') then
-    create policy status_changes_select on public.status_changes
-      for select using (
-        exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = status_changes.tenant_id)
-      );
-  end if;
-  if not exists (select 1 from pg_policies where tablename='status_changes' and policyname='status_changes_insert') then
-    create policy status_changes_insert on public.status_changes
-      for insert with check (
-        exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = status_changes.tenant_id)
-      );
-  end if;
-  if not exists (select 1 from pg_policies where tablename='status_changes' and policyname='status_changes_update') then
-    create policy status_changes_update on public.status_changes
-      for update using (
-        exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = status_changes.tenant_id)
-      );
-  end if;
-  if not exists (select 1 from pg_policies where tablename='status_changes' and policyname='status_changes_delete') then
-    create policy status_changes_delete on public.status_changes
-      for delete using (
-        exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = status_changes.tenant_id)
-      );
-  end if;
-end $$;
+-- JETZT Tenants-Policy erstellen (nachdem tenant_memberships existiert)
+DROP POLICY IF EXISTS tenants_select ON public.tenants;
+CREATE POLICY tenants_select ON public.tenants
+  FOR SELECT
+  USING (
+    id IN (
+      SELECT tenant_id FROM public.tenant_memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
 
--- Notifications
-alter table public.notifications add column if not exists tenant_id uuid;
-alter table public.notifications enable row level security;
-do $$ begin
-  if not exists (select 1 from pg_constraint where conname='notifications_tenant_id_fkey') then
-    alter table public.notifications add constraint notifications_tenant_id_fkey foreign key (tenant_id)
-      references public.tenants(id) on update cascade on delete restrict;
-  end if;
-end $$;
-create index if not exists idx_notifications_tenant_id on public.notifications(tenant_id);
--- Drop user-only policies and replace with tenant-aware
-do $$ begin
-  if exists (select 1 from pg_policies where tablename='notifications' and policyname='Users can view their own notifications') then
-    drop policy "Users can view their own notifications" on public.notifications;
-  end if;
-  if exists (select 1 from pg_policies where tablename='notifications' and policyname='Users can insert notifications for themselves') then
-    drop policy "Users can insert notifications for themselves" on public.notifications;
-  end if;
-  if exists (select 1 from pg_policies where tablename='notifications' and policyname='Users can update their own notifications') then
-    drop policy "Users can update their own notifications" on public.notifications;
-  end if;
-  if exists (select 1 from pg_policies where tablename='notifications' and policyname='Users can delete their own notifications') then
-    drop policy "Users can delete their own notifications" on public.notifications;
-  end if;
-end $$;
-do $$ begin
-  if not exists (select 1 from pg_policies where tablename='notifications' and policyname='notifications_select') then
-    create policy notifications_select on public.notifications
-      for select using (
-        user_id = auth.uid() and exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = notifications.tenant_id)
-      );
-  end if;
-  if not exists (select 1 from pg_policies where tablename='notifications' and policyname='notifications_insert') then
-    create policy notifications_insert on public.notifications
-      for insert with check (
-        user_id = auth.uid() and exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = notifications.tenant_id)
-      );
-  end if;
-  if not exists (select 1 from pg_policies where tablename='notifications' and policyname='notifications_update') then
-    create policy notifications_update on public.notifications
-      for update using (
-        user_id = auth.uid() and exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = notifications.tenant_id)
-      );
-  end if;
-  if not exists (select 1 from pg_policies where tablename='notifications' and policyname='notifications_delete') then
-    create policy notifications_delete on public.notifications
-      for delete using (
-        user_id = auth.uid() and exists (select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = notifications.tenant_id)
-      );
-  end if;
-end $$;
+-- 3. TENANT_ID zu LEADS hinzufügen (falls noch nicht vorhanden)
+-- =====================================================
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'leads' 
+    AND column_name = 'tenant_id'
+  ) THEN
+    ALTER TABLE public.leads 
+    ADD COLUMN tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+    
+    CREATE INDEX idx_leads_tenant_id ON public.leads(tenant_id);
+  END IF;
+END $$;
 
--- 3) Invitations + RPC
-create table if not exists public.invitations (
-  id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references public.tenants(id) on delete cascade,
-  email text not null,
-  role  text not null check (role in ('owner','admin','agent','viewer')) default 'agent',
-  token text not null unique,
-  invited_by uuid not null references auth.users(id) on delete restrict,
-  accepted boolean not null default false,
-  created_at timestamptz not null default now(),
-  accepted_at timestamptz
-);
-create index if not exists idx_invitations_tenant_email on public.invitations(tenant_id, email);
+-- 4. TENANT_ID zu APPOINTMENTS hinzufügen (falls noch nicht vorhanden)
+-- =====================================================
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'appointments' 
+    AND column_name = 'tenant_id'
+  ) THEN
+    ALTER TABLE public.appointments 
+    ADD COLUMN tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+    
+    CREATE INDEX idx_appointments_tenant_id ON public.appointments(tenant_id);
+  END IF;
+END $$;
 
-alter table public.invitations enable row level security;
+-- 5. RLS POLICIES für LEADS anpassen
+-- =====================================================
 
-do $$ begin
-  if not exists (select 1 from pg_policies where tablename='invitations' and policyname='invitations_select') then
-    create policy invitations_select on public.invitations
-      for select using (
-        exists (
-          select 1 from public.memberships m
-          where m.tenant_id = invitations.tenant_id and m.user_id = auth.uid() and m.role in ('owner','admin')
+-- Alte Policies entfernen
+DROP POLICY IF EXISTS leads_select ON public.leads;
+DROP POLICY IF EXISTS leads_insert ON public.leads;
+DROP POLICY IF EXISTS leads_update ON public.leads;
+DROP POLICY IF EXISTS leads_delete ON public.leads;
+
+-- Neue Policies mit Tenant-Check
+CREATE POLICY leads_select ON public.leads
+  FOR SELECT
+  USING (
+    tenant_id IN (
+      SELECT tm.tenant_id 
+      FROM public.tenant_memberships tm 
+      WHERE tm.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY leads_insert ON public.leads
+  FOR INSERT
+  WITH CHECK (
+    tenant_id IN (
+      SELECT tm.tenant_id 
+      FROM public.tenant_memberships tm 
+      WHERE tm.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY leads_update ON public.leads
+  FOR UPDATE
+  USING (
+    tenant_id IN (
+      SELECT tm.tenant_id 
+      FROM public.tenant_memberships tm 
+      WHERE tm.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY leads_delete ON public.leads
+  FOR DELETE
+  USING (
+    tenant_id IN (
+      SELECT tm.tenant_id 
+      FROM public.tenant_memberships tm 
+      WHERE tm.user_id = auth.uid()
+      AND tm.role IN ('owner', 'admin')
+    )
+  );
+
+-- 6. HELPER FUNCTIONS
+-- =====================================================
+
+-- Funktion: Prüfe ob User Admin/Owner in Tenant ist
+-- CASCADE löscht auch abhängige Policies (werden später neu erstellt)
+DROP FUNCTION IF EXISTS public.is_tenant_admin(uuid, uuid) CASCADE;
+CREATE OR REPLACE FUNCTION public.is_tenant_admin(check_tenant_id uuid, check_user_id uuid)
+RETURNS boolean AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.tenant_memberships
+    WHERE tenant_id = check_tenant_id
+    AND user_id = check_user_id
+    AND role IN ('owner', 'admin', 'sales_admin')
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Funktion: Hole alle Tenants eines Users
+DROP FUNCTION IF EXISTS public.get_user_tenants(uuid);
+CREATE OR REPLACE FUNCTION public.get_user_tenants(check_user_id uuid)
+RETURNS TABLE (
+  tenant_id uuid,
+  tenant_name text,
+  tenant_slug text,
+  user_role text,
+  joined_at timestamptz
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    t.id,
+    t.name,
+    t.slug,
+    tm.role,
+    tm.created_at
+  FROM public.tenants t
+  INNER JOIN public.tenant_memberships tm ON t.id = tm.tenant_id
+  WHERE tm.user_id = check_user_id
+  ORDER BY tm.created_at DESC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 7. VIEWS
+-- =====================================================
+
+-- View: Tenant-Statistiken
+CREATE OR REPLACE VIEW public.tenant_stats AS
+SELECT 
+  t.id as tenant_id,
+  t.name as tenant_name,
+  COUNT(DISTINCT tm.user_id) as member_count,
+  COUNT(DISTINCT l.id) as lead_count,
+  COUNT(DISTINCT a.id) as appointment_count,
+  t.created_at
+FROM public.tenants t
+LEFT JOIN public.tenant_memberships tm ON t.id = tm.tenant_id
+LEFT JOIN public.leads l ON t.id = l.tenant_id
+LEFT JOIN public.appointments a ON t.id = a.tenant_id
+GROUP BY t.id, t.name, t.created_at;
+
+-- 8. INITIAL DATEN (Optional - für Testing)
+-- =====================================================
+
+-- Kommentiere die nächsten Zeilen aus, wenn du Test-Daten möchtest:
+/*
+-- Test-Tenant erstellen
+INSERT INTO public.tenants (id, name, slug)
+VALUES ('a0668e3e-d954-40e9-bcdd-bd47566d2b1f', 'SolaVolta PV', 'solavolta-pv')
+ON CONFLICT (id) DO NOTHING;
+
+-- Aktuellen User als Owner hinzufügen (ersetze USER_ID mit echter UUID)
+-- INSERT INTO public.tenant_memberships (tenant_id, user_id, role)
+-- VALUES ('a0668e3e-d954-40e9-bcdd-bd47566d2b1f', 'DEINE_USER_ID_HIER', 'owner')
+-- ON CONFLICT DO NOTHING;
+*/
+
+-- 9. MIGRIERE BESTEHENDE DATEN (falls vorhanden)
+-- =====================================================
+
+-- Generiere Slugs für bestehende Tenants ohne Slug
+UPDATE public.tenants 
+SET slug = LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]+', '-', 'g'))
+WHERE slug IS NULL;
+
+-- Dedupliziere Slugs (falls Konflikte entstanden sind)
+DO $$
+DECLARE
+  tenant_rec RECORD;
+  new_slug text;
+  counter integer;
+BEGIN
+  FOR tenant_rec IN 
+    SELECT id, name, slug 
+    FROM public.tenants 
+    WHERE slug IS NOT NULL
+  LOOP
+    counter := 1;
+    new_slug := tenant_rec.slug;
+    
+    -- Prüfe auf Duplikate und füge Nummer hinzu
+    WHILE EXISTS (
+      SELECT 1 FROM public.tenants 
+      WHERE slug = new_slug 
+      AND id != tenant_rec.id
+    ) LOOP
+      new_slug := tenant_rec.slug || '-' || counter;
+      counter := counter + 1;
+    END LOOP;
+    
+    -- Update falls geändert
+    IF new_slug != tenant_rec.slug THEN
+      UPDATE public.tenants 
+      SET slug = new_slug 
+      WHERE id = tenant_rec.id;
+    END IF;
+  END LOOP;
+END $$;
+
+-- Setze einen Standard-Tenant für bestehende Leads ohne tenant_id
+DO $$ 
+DECLARE
+  default_tenant_id uuid;
+BEGIN
+  -- Ersten Tenant als Default nehmen oder neuen erstellen
+  SELECT id INTO default_tenant_id FROM public.tenants LIMIT 1;
+  
+  IF default_tenant_id IS NULL THEN
+    INSERT INTO public.tenants (name, slug)
+    VALUES ('Standard Tenant', 'standard')
+    RETURNING id INTO default_tenant_id;
+  END IF;
+  
+  -- Leads ohne tenant_id updaten
+  UPDATE public.leads 
+  SET tenant_id = default_tenant_id 
+  WHERE tenant_id IS NULL;
+  
+  -- Appointments ohne tenant_id updaten
+  UPDATE public.appointments 
+  SET tenant_id = default_tenant_id 
+  WHERE tenant_id IS NULL;
+END $$;
+
+-- 10. CONSTRAINTS
+-- =====================================================
+
+-- tenant_id darf nicht NULL sein (nach Migration)
+DO $$
+BEGIN
+  -- Prüfe ob alle Leads einen tenant_id haben
+  IF NOT EXISTS (SELECT 1 FROM public.leads WHERE tenant_id IS NULL) THEN
+    ALTER TABLE public.leads ALTER COLUMN tenant_id SET NOT NULL;
+  END IF;
+  
+  -- Prüfe ob alle Appointments einen tenant_id haben
+  IF NOT EXISTS (SELECT 1 FROM public.appointments WHERE tenant_id IS NULL) THEN
+    ALTER TABLE public.appointments ALTER COLUMN tenant_id SET NOT NULL;
+  END IF;
+END $$;
+
+-- =====================================================
+-- FERTIG! Multi-Tenant Setup abgeschlossen
+-- =====================================================
+
+-- 11. POLICIES NEU ERSTELLEN (falls durch CASCADE gelöscht)
+-- =====================================================
+
+-- Policies für enhanced_follow_ups
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE schemaname = 'public' 
+    AND tablename = 'enhanced_follow_ups' 
+    AND policyname = 'efu_select_role_or_owner'
+  ) THEN
+    CREATE POLICY efu_select_role_or_owner ON public.enhanced_follow_ups
+      FOR SELECT
+      USING (
+        tenant_id IN (
+          SELECT tm.tenant_id FROM public.tenant_memberships tm 
+          WHERE tm.user_id = auth.uid()
         )
+        OR public.is_tenant_admin(tenant_id, auth.uid())
       );
-  end if;
-  if not exists (select 1 from pg_policies where tablename='invitations' and policyname='invitations_insert') then
-    create policy invitations_insert on public.invitations
-      for insert with check (
-        exists (
-          select 1 from public.memberships m
-          where m.tenant_id = invitations.tenant_id and m.user_id = auth.uid() and m.role in ('owner','admin')
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE schemaname = 'public' 
+    AND tablename = 'enhanced_follow_ups' 
+    AND policyname = 'efu_write_role_or_owner'
+  ) THEN
+    CREATE POLICY efu_write_role_or_owner ON public.enhanced_follow_ups
+      FOR ALL
+      USING (
+        tenant_id IN (
+          SELECT tm.tenant_id FROM public.tenant_memberships tm 
+          WHERE tm.user_id = auth.uid()
         )
+        OR public.is_tenant_admin(tenant_id, auth.uid())
       );
-  end if;
-  if not exists (select 1 from pg_policies where tablename='invitations' and policyname='invitations_update') then
-    create policy invitations_update on public.invitations
-      for update using (
-        exists (
-          select 1 from public.memberships m
-          where m.tenant_id = invitations.tenant_id and m.user_id = auth.uid() and m.role in ('owner','admin')
+  END IF;
+END $$;
+
+-- Policies für appointments (zusätzlich zu den bereits erstellten)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE schemaname = 'public' 
+    AND tablename = 'appointments' 
+    AND policyname = 'appt_select_role_or_owner'
+  ) THEN
+    CREATE POLICY appt_select_role_or_owner ON public.appointments
+      FOR SELECT
+      USING (
+        tenant_id IN (
+          SELECT tm.tenant_id FROM public.tenant_memberships tm 
+          WHERE tm.user_id = auth.uid()
         )
+        OR public.is_tenant_admin(tenant_id, auth.uid())
       );
-  end if;
-end $$;
+  END IF;
 
-create or replace function public.accept_invitations_for_current_user()
-returns void language plpgsql security definer as $$
-declare v_user_id uuid; v_email text; begin
-  v_user_id := auth.uid();
-  select email into v_email from auth.users where id = v_user_id;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE schemaname = 'public' 
+    AND tablename = 'appointments' 
+    AND policyname = 'appt_write_role_or_owner'
+  ) THEN
+    CREATE POLICY appt_write_role_or_owner ON public.appointments
+      FOR ALL
+      USING (
+        tenant_id IN (
+          SELECT tm.tenant_id FROM public.tenant_memberships tm 
+          WHERE tm.user_id = auth.uid()
+        )
+        OR public.is_tenant_admin(tenant_id, auth.uid())
+      );
+  END IF;
+END $$;
 
-  insert into public.memberships (tenant_id, user_id, role)
-  select i.tenant_id, v_user_id, i.role
-  from public.invitations i
-  where i.email ilike v_email and i.accepted = false
-  on conflict (tenant_id, user_id) do update set role = excluded.role;
+-- Policies für leads (zusätzlich zu den bereits erstellten)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE schemaname = 'public' 
+    AND tablename = 'leads' 
+    AND policyname = 'leads_select_role_or_owner'
+  ) THEN
+    CREATE POLICY leads_select_role_or_owner ON public.leads
+      FOR SELECT
+      USING (
+        tenant_id IN (
+          SELECT tm.tenant_id FROM public.tenant_memberships tm 
+          WHERE tm.user_id = auth.uid()
+        )
+        OR public.is_tenant_admin(tenant_id, auth.uid())
+      );
+  END IF;
 
-  update public.invitations set accepted = true, accepted_at = now()
-  where email ilike v_email and accepted = false;
-end; $$;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE schemaname = 'public' 
+    AND tablename = 'leads' 
+    AND policyname = 'leads_modify_role_or_owner'
+  ) THEN
+    CREATE POLICY leads_modify_role_or_owner ON public.leads
+      FOR ALL
+      USING (
+        tenant_id IN (
+          SELECT tm.tenant_id FROM public.tenant_memberships tm 
+          WHERE tm.user_id = auth.uid()
+        )
+        OR public.is_tenant_admin(tenant_id, auth.uid())
+      );
+  END IF;
+END $$;
 
--- 4) Storage Policies (im storage Schema anlegen)
--- Beispiel: Bucket 'offers' und 'tvp' – erlaubt Zugriff nur innerhalb des Tenant-Pfads
--- name format: tenant/<tenant_id>/user/<user_id>/leads/<lead_id>/<type>/<timestamp>_file.pdf
---
--- create policy if not exists storage_offers_select on storage.objects
---   for select to authenticated using (
---     bucket_id = 'offers' and exists (
---       select 1 from public.memberships m where m.user_id = auth.uid() and m.tenant_id = (split_part(name,'/',2))::uuid
---     )
---   );
--- -- analog: insert/update/delete und für Bucket 'tvp'
+-- =====================================================
+-- FERTIG! Multi-Tenant Setup abgeschlossen
+-- =====================================================
 
+-- Überprüfung der Installation
+SELECT 
+  'Tenants' as table_name, 
+  COUNT(*) as count 
+FROM public.tenants
+UNION ALL
+SELECT 
+  'Tenant Memberships' as table_name, 
+  COUNT(*) as count 
+FROM public.tenant_memberships
+UNION ALL
+SELECT 
+  'Leads mit Tenant' as table_name, 
+  COUNT(*) as count 
+FROM public.leads 
+WHERE tenant_id IS NOT NULL;
 
+COMMENT ON TABLE public.tenants IS 'Mandanten-Verwaltung für Multi-Tenant-Applikation';
+COMMENT ON TABLE public.tenant_memberships IS 'Zuordnung von Benutzern zu Mandanten mit Rollen';
+COMMENT ON COLUMN public.tenant_memberships.role IS 'Rolle: owner, admin, sales_admin, member, viewer';

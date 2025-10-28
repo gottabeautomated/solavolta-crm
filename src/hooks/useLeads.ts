@@ -38,9 +38,18 @@ export function useLeads() {
       }
 
       const tenantId = activeTenantId as string
+      // Nur Spalten anfragen, die laut DB-Typen vorhanden sind
+      const safeColumns = [
+        'id','created_at','updated_at','name','phone','email','address','status_since','lead_status','contact_type','phone_status',
+        'offer_pv','offer_storage','offer_backup','tvp','documentation','doc_link','exported_to_sap','lat','lng',
+        'follow_up','follow_up_date',
+        'next_action','next_action_date','next_action_time','preliminary_offer','lost_reason','offer_created_at','offer_sent_at','offer_amount',
+        'voicemail_left','phone_switched_off','not_reached_count','pv_kwp','storage_kwh',
+        'has_backup','has_ev_charger','has_heating_mgmt','quick_notes','tenant_id','user_id','archived'
+      ].join(',')
       let query = supabase
         .from('leads')
-        .select('*')
+        .select(safeColumns)
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
       if (!isAdmin && user?.id) {
@@ -49,6 +58,7 @@ export function useLeads() {
       const { data, error } = await query
 
       if (error) {
+        if (import.meta.env.DEV) console.error('[useLeads] Supabase error loading leads', { message: error.message, details: (error as any).details, hint: (error as any).hint })
         throw error
       }
 
@@ -69,9 +79,17 @@ export function useLeads() {
         return { data: null, error: new Error('Kein aktiver Mandant gewählt') }
       }
       const tenantId = activeTenantId as string
+      const safeColumns = [
+        'id','created_at','updated_at','name','phone','email','address','status_since','lead_status','contact_type','phone_status',
+        'offer_pv','offer_storage','offer_backup','tvp','documentation','doc_link','exported_to_sap','lat','lng',
+        'follow_up','follow_up_date',
+        'next_action','next_action_date','next_action_time','preliminary_offer','lost_reason','offer_created_at','offer_sent_at','offer_amount',
+        'voicemail_left','phone_switched_off','not_reached_count','pv_kwp','storage_kwh',
+        'has_backup','has_ev_charger','has_heating_mgmt','quick_notes','tenant_id','user_id','archived'
+      ].join(',')
       let query = supabase
         .from('leads')
-        .select('*')
+        .select(safeColumns)
         .eq('id', id)
         .eq('tenant_id', tenantId)
       if (!isAdmin && user?.id) {
@@ -361,10 +379,15 @@ export function useLeads() {
         appointmentBooked = Boolean(appt?.id)
       } catch {}
 
-      // Neuen Status bestimmen (wenn gerade lokal Termin erstellt wurde, UI sofort auf "Termin vereinbart")
+      // Neuen Status bestimmen
+      // Priorität:
+      // 1) __force_status (interne UI-Forcierung z. B. nach Terminanlage)
+      // 2) explizit vom Benutzer gesetzter lead_status (z. B. Dropdown in Liste/Form)
+      // 3) automatische Ableitung aus aktuellem Zustand
       const forced = (leadData as any).__force_status as LeadStatus | undefined
-      const newStatus = forced || determineNewStatus(currentLead, { ...patched, appointmentBooked } as any);
-      const updatedData = { ...patched, lead_status: newStatus } as any;
+      const explicit = (leadData as any).lead_status as LeadStatus | undefined
+      const newStatus = forced || explicit || determineNewStatus(currentLead, { ...patched, appointmentBooked } as any)
+      const updatedData = { ...patched, lead_status: newStatus } as any
       // Zeit-/Datumsnormalisierung: leere Strings -> NULL, um DB-Typfehler zu vermeiden
       const normalizedData: any = { ...updatedData };
       // Pseudo-Felder nicht in DB schreiben
@@ -375,16 +398,35 @@ export function useLeads() {
         if (v.trim() === '') return null;
         return /^\d{2}:\d{2}$/.test(v) ? v : null;
       };
-      normalizedData.appointment_time = toValidTimeOrNull(normalizedData.appointment_time);
+      // Legacy Felder nicht mehr schreiben – Termin ist in appointments ausgelagert
+      const legacyFields = [
+        'appointment_time',
+        'appointment_date',
+        'appointment_channel',
+        'appointment_completed',
+        'calendar_link',
+        // Follow-up Felder sind legacy und werden über EFUs abgebildet
+        'follow_up',
+        'follow_up_date'
+      ] as const
+      for (const key of legacyFields) delete (normalizedData as any)[key]
       normalizedData.next_action_time = toValidTimeOrNull(normalizedData.next_action_time);
       
       const tenantId = activeTenantId
+      const safeColumns = [
+        'id','created_at','updated_at','name','phone','email','address','status_since','lead_status','contact_type','phone_status',
+        'offer_pv','offer_storage','offer_backup','tvp','documentation','doc_link','exported_to_sap','lat','lng',
+        'follow_up','follow_up_date',
+        'next_action','next_action_date','next_action_time','preliminary_offer','lost_reason','offer_created_at','offer_sent_at','offer_amount',
+        'voicemail_left','phone_switched_off','not_reached_count','pv_kwp','storage_kwh',
+        'has_backup','has_ev_charger','has_heating_mgmt','quick_notes','tenant_id','user_id','archived'
+      ].join(',')
       const { data, error } = await supabase
         .from('leads')
         .update(normalizedData)
         .eq('id', leadData.id)
         .eq('tenant_id', tenantId as string)
-        .select()
+        .select(safeColumns)
         .single()
 
       if (!error && data) {

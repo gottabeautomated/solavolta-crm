@@ -5,7 +5,7 @@ export const SALES_AUTOMATION_RULES: EFURule[] = [
   { id: 'first_contact_sla', trigger: { status: 'Neu' }, action: { type: 'create_efu', efu: { title: 'Erstkontakt', description: 'Erstkontakt innerhalb 24h durchführen (SLA)', days: 0, priority: 'high', type: 'call' } } },
   { id: 'qualified_follow_up', trigger: { status: 'Qualifiziert' }, action: { type: 'create_efu', efu: { title: 'Qualifizierten Lead kontaktieren', description: 'Kontaktaufnahme mit qualifiziertem Lead', days: 0, priority: 'high', type: 'call' } } },
   { id: 'not_reached_1x', trigger: { status: 'Nicht erreicht 1x' }, action: { type: 'create_efu', efu: { title: 'Kontaktversuch #2', description: 'Zweiter Kontaktversuch (+1 Arbeitstag)', days: 1, priority: 'medium', type: 'call' } } },
-  { id: 'not_reached_2x', trigger: { status: 'Nicht erreicht 2x' }, action: { type: 'create_efu', efu: { title: 'Kontaktversuch #3', description: 'Dritter und letzter Kontaktversuch (+6 Arbeitstage)', days: 6, priority: 'medium', type: 'call' } } },
+  { id: 'not_reached_2x', trigger: { status: 'Nicht erreicht 2x' }, action: { type: 'create_efu', efu: { title: 'Kontaktversuch #3', description: 'Dritter und letzter Kontaktversuch (+3 Arbeitstage)', days: 3, priority: 'medium', type: 'call' } } },
   { id: 'not_reached_3x', trigger: { status: 'Nicht erreicht 3x' }, action: { type: 'both', efu: { title: 'Follow-up nach Auto-E-Mail', description: 'Follow-up nach automatischer E-Mail-Kontaktaufnahme (+10 Arbeitstage)', days: 10, priority: 'low', type: 'custom' }, webhook: { endpoint: '/webhook/third-attempt-email', payload: { trigger: 'automated_email', template: 'not_reached_3x', priority: 'medium' } } } },
   { id: 'appointment_scheduled', trigger: { status: 'Termin vereinbart' }, action: { type: 'both', efu: { title: 'Termin-Reminder', description: 'Reminder 1 Tag vor Termin', days: -1, priority: 'medium', type: 'meeting' }, webhook: { endpoint: '/webhook/calendar-integration', payload: { trigger: 'appointment_scheduled', action: 'create_calendar_entry' } } } },
   { id: 'offer_requested', trigger: { status: 'Angebot angefragt' }, action: { type: 'create_efu', efu: { title: 'Angebot erstellen', description: 'Angebot erstellen und versenden (SLA: 2 Tage)', days: 2, priority: 'high', type: 'offer_followup' } } },
@@ -68,8 +68,8 @@ export function calculateEFUDateForStatus(status: SalesLeadStatus, baseDate: Dat
   const rule = getRuleForStatus(status, data)
   if (!rule || !rule.action.efu) return baseDate
   const days = rule.action.efu.days
-  if (status === 'Termin vereinbart' && data?.appointment_date) {
-    const appointmentDate = new Date(data.appointment_date)
+  if (status === 'Termin vereinbart' && (data as any)?.appointment_date) {
+    const appointmentDate = new Date((data as any).appointment_date)
     return calculateWorkingDays(appointmentDate, -1)
   }
   if (status === 'Pausiert' && data?.paused_until) {

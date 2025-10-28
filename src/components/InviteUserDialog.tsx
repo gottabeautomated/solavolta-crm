@@ -1,5 +1,19 @@
 import React, { useMemo, useState } from 'react'
-import { Dialog } from '@headlessui/react'
+// Fallback-Dialog ohne externe Abhängigkeit
+function Dialog({ open, onClose, children, className }: { open: boolean; onClose: () => void; children: React.ReactNode; className?: string }) {
+  if (!open) return null
+  return (
+    <div className={className || ''}>
+      {children}
+    </div>
+  )
+}
+Dialog.Panel = function Panel({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={className}>{children}</div>
+} as any
+Dialog.Title = function Title({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={className}>{children}</div>
+} as any
 import { useAuthContext } from '../contexts/AuthContext'
 import { sendInvitation, type InvitationRole } from '../lib/invitations'
 

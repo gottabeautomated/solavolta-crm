@@ -6,7 +6,7 @@ export async function debugAuthState() {
   if (import.meta.env.DEV) console.log('Session:', { user: session?.user?.email || 'NOT_LOGGED_IN', error: sessionError?.message })
   if (!session?.user) return
   const { data: memberships, error: membError } = await supabase
-    .from('memberships')
+    .from('tenant_memberships')
     .select('tenant_id, role')
     .eq('user_id', session.user.id)
   if (import.meta.env.DEV) console.log('Memberships:', { count: memberships?.length || 0, data: memberships, error: membError?.message })

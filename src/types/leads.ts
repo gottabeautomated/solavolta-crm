@@ -1,6 +1,18 @@
 import type { Database } from './database.types'
 
-export type Lead = Database['public']['Tables']['leads']['Row']
+export interface OfferData {
+  type: 'pv' | 'storage' | 'emergency' | 'tvp';
+  date?: string;
+  number?: string;
+  bucket?: string;
+  storage_path?: string;
+  amount?: number;
+}
+
+export type Lead = Database['public']['Tables']['leads']['Row'] & {
+  // Frontend-Präzisierung: JSON-Feld als strukturierte Liste behandeln
+  offers: OfferData[] | null
+}
 export type LeadInsert = Database['public']['Tables']['leads']['Insert']
 export type LeadUpdate = Database['public']['Tables']['leads']['Update']
 
@@ -67,14 +79,7 @@ export const PHONE_STATUS_OPTIONS = [
   { value: 'termin_vereinbart', label: 'Termin vereinbart' },
 ];
 
-export interface OfferData {
-  type: 'pv' | 'storage' | 'emergency' | 'tvp';
-  date?: string;
-  number?: string;
-  bucket?: string;
-  storage_path?: string;
-  amount?: number;
-}
+// OfferData wurde nach oben verschoben, damit Lead es erweitern kann
 
 export type ContactType = 'Telefon' | 'Vor Ort' | 'E-Mail'
 export type PhoneStatus = 'erreichbar' | 'nicht_erreichbar' | 'zurueckrufen' | 'termin_vereinbart'

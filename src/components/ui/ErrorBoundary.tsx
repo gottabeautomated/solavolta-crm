@@ -2,7 +2,9 @@ import React from 'react'
 
 interface State { hasError: boolean; message?: string }
 
-export class ErrorBoundary extends React.Component<{ fallback?: React.ReactNode }, State> {
+interface Props { children?: React.ReactNode; fallback?: React.ReactNode }
+
+export class ErrorBoundary extends React.Component<Props, State> {
   state: State = { hasError: false }
 
   static getDerivedStateFromError(error: any): State {
