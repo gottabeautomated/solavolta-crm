@@ -19,10 +19,14 @@ export function EnhancedFollowUpsPanel({ onOpenLead }: Props) {
   if (loading) return <div className="p-4">Lade Enhanced Follow-ups…</div>
   if (error) return <div className="p-4 text-red-600">{error}</div>
 
-  const Section = ({ title, items }: { title: string; items: any[] }) => (
-    <div className="bg-white rounded border shadow-sm">
-      <div className="px-4 py-2 font-semibold border-b flex items-center justify-between">
-        <span>{title} ({items.length})</span>
+  const Section = ({ title, items }: { title: string; items: any[] }) => {
+    // CRITICAL: Ensure items is always an array
+    const safeItems = Array.isArray(items) ? items : []
+    
+    return (
+      <div className="bg-white rounded border shadow-sm">
+        <div className="px-4 py-2 font-semibold border-b flex items-center justify-between">
+          <span>{title} ({safeItems.length})</span>
         <div className="flex items-center gap-2">
           {title === 'Heute' && (
             <button className="text-blue-600 text-sm" onClick={() => { setEditItem(null); setShowForm(true) }}>Neu</button>
@@ -38,11 +42,11 @@ export function EnhancedFollowUpsPanel({ onOpenLead }: Props) {
           </details>
         </div>
       </div>
-      {items.length === 0 ? (
+      {safeItems.length === 0 ? (
         <div className="p-4 text-gray-500">Keine Einträge</div>
       ) : (
         <ul className="divide-y">
-          {items.map((it) => (
+          {safeItems.map((it) => (
             <li key={it.id} className="p-3 flex items-center justify-between text-sm">
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 <input type="checkbox" checked={!!selected[it.id]} onChange={(e)=>setSelected(s=>({ ...s, [it.id]: e.target.checked }))} />
@@ -75,7 +79,8 @@ export function EnhancedFollowUpsPanel({ onOpenLead }: Props) {
         </ul>
       )}
     </div>
-  )
+    )
+  }
 
   return (
     <div className="space-y-4">
