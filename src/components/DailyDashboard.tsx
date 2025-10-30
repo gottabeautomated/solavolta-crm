@@ -220,22 +220,14 @@ export function DailyDashboard({ onOpenLead }: Props) {
   const loading = loadingToday || loadingOverdue || loadingWeek || loadingPrio
   const error = errorToday || errorOverdue || errorWeek || errorPrio
 
-  // AGGRESSIVE DEBUG: Log all values to find the culprit
-  console.log('🔍 Dashboard render check:', {
-    today: Array.isArray(today) ? `Array(${today.length})` : typeof today,
-    overdue: Array.isArray(overdue) ? `Array(${overdue.length})` : typeof overdue,
-    week: Array.isArray(week) ? `Array(${week.length})` : typeof week,
-    priorities: Array.isArray(priorities) ? `Array(${priorities.length})` : typeof priorities,
-    leads: Array.isArray(leads) ? `Array(${leads.length})` : typeof leads,
-    'efu.today': efu.today ? `Array(${efu.today.length})` : typeof efu.today,
-    'efu.overdue': efu.overdue ? `Array(${efu.overdue.length})` : typeof efu.overdue,
-    weekAppointments: Array.isArray(weekAppointments) ? `Array(${weekAppointments.length})` : typeof weekAppointments,
-    todayContacts: Array.isArray(todayContacts) ? `Array(${todayContacts.length})` : typeof todayContacts,
-    appointments7: Array.isArray(appointments7) ? `Array(${appointments7.length})` : typeof appointments7,
-  })
-
   if (loading) return <div className="p-4">Lade Dashboard…</div>
   if (error) return <div className="p-4 text-red-600">{String(error)}</div>
+  
+  // AGGRESSIVE CHECK: Prevent render if any critical array is undefined
+  if (!Array.isArray(today) || !Array.isArray(overdue) || !Array.isArray(week) || !Array.isArray(priorities)) {
+    console.error('❌ CRITICAL: Dashboard arrays not ready!', { today, overdue, week, priorities })
+    return <div className="p-4 text-orange-600">Dashboard lädt... (Warte auf Daten)</div>
+  }
 
   return (
     <div className="space-y-6">
