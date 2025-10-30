@@ -18,21 +18,42 @@ export function ArchiveLeadsModal({ isOpen, onClose, onArchived }: ArchiveLeadsM
   const [loading, setLoading] = useState(false)
   const [archiving, setArchiving] = useState(false)
 
+  // Safety: ensure leads is always an array
+  const safeLeads = Array.isArray(leads) ? leads : []
+
   // Lade Leads älter als 1 Monat
   useEffect(() => {
-    if (isOpen && activeTenantId) {
+    if (!isOpen) {
+      // Reset state when modal closes
+      setLeads([])
+      setSelectedLeads(new Set())
+      setLoading(false)
+      return
+    }
+
+    if (activeTenantId) {
       loadOldLeads()
+    } else {
+      console.warn('⚠️ ArchiveLeadsModal opened without activeTenantId')
+      setLeads([])
+      setSelectedLeads(new Set())
+      setLoading(false)
     }
   }, [isOpen, activeTenantId])
 
   const loadOldLeads = async () => {
-    if (!activeTenantId) return
+    if (!activeTenantId) {
+      console.warn('⚠️ loadOldLeads: No activeTenantId')
+      return
+    }
     
     setLoading(true)
     try {
       // Datum vor 1 Monat
       const oneMonthAgo = new Date()
       oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
+
+      console.log('🔍 Loading old leads before:', oneMonthAgo.toISOString())
 
       const { data, error } = await supabase
         .from('leads')
@@ -42,13 +63,20 @@ export function ArchiveLeadsModal({ isOpen, onClose, onArchived }: ArchiveLeadsM
         .lt('created_at', oneMonthAgo.toISOString())
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Supabase error:', error)
+        throw error
+      }
 
-      setLeads(data || [])
+      console.log('✅ Loaded leads:', data?.length || 0)
+      const leadData = Array.isArray(data) ? data : []
+      setLeads(leadData)
       // Alle standardmäßig auswählen
-      setSelectedLeads(new Set(data?.map(l => l.id) || []))
+      setSelectedLeads(new Set(leadData.map(l => l.id)))
     } catch (err) {
-      console.error('Fehler beim Laden der Leads:', err)
+      console.error('❌ Fehler beim Laden der Leads:', err)
+      setLeads([]) // Ensure it's always an array
+      setSelectedLeads(new Set())
     } finally {
       setLoading(false)
     }
@@ -65,10 +93,10 @@ export function ArchiveLeadsModal({ isOpen, onClose, onArchived }: ArchiveLeadsM
   }
 
   const toggleAll = () => {
-    if (selectedLeads.size === leads.length) {
+    if (selectedLeads.size === safeLeads.length) {
       setSelectedLeads(new Set())
     } else {
-      setSelectedLeads(new Set(leads.map(l => l.id)))
+      setSelectedLeads(new Set(safeLeads.map(l => l.id)))
     }
   }
 
@@ -85,7 +113,7 @@ export function ArchiveLeadsModal({ isOpen, onClose, onArchived }: ArchiveLeadsM
       if (error) throw error
 
       // Update local state
-      setLeads(leads.map(lead => 
+      setLeads(safeLeads.map(lead => 
         lead.id === leadId 
           ? { ...lead, lead_status: newStatus } 
           : lead
@@ -123,6 +151,9 @@ export function ArchiveLeadsModal({ isOpen, onClose, onArchived }: ArchiveLeadsM
     }
   }
 
+  // Early return if modal is closed
+  if (!isOpen) return null
+
   const getStatusBadgeColor = (status: LeadStatus) => {
     const colors: Record<string, string> = {
       'Neu': 'bg-blue-100 text-blue-800',
@@ -146,7 +177,7 @@ export function ArchiveLeadsModal({ isOpen, onClose, onArchived }: ArchiveLeadsM
             <div>
               <h2 className="text-2xl font-bold text-gray-900">🗄️ Leads archivieren</h2>
               <p className="text-sm text-gray-600 mt-1">
-                Leads älter als 1 Monat · {leads.length} gefunden
+                Leads älter als 1 Monat · {safeLeads.length} gefunden
               </p>
             </div>
             <button
@@ -165,7 +196,7 @@ export function ArchiveLeadsModal({ isOpen, onClose, onArchived }: ArchiveLeadsM
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
               <p className="text-gray-600 mt-4">Lade Leads...</p>
             </div>
-          ) : leads.length === 0 ? (
+          ) : safeLeads.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-xl text-gray-600">🎉 Keine Leads zum Archivieren!</p>
               <p className="text-sm text-gray-500 mt-2">
@@ -179,12 +210,12 @@ export function ArchiveLeadsModal({ isOpen, onClose, onArchived }: ArchiveLeadsM
                 <label className="flex items-center cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={selectedLeads.size === leads.length}
+                    checked={selectedLeads.size === safeLeads.length}
                     onChange={toggleAll}
                     className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
                   <span className="ml-3 font-medium text-gray-900">
-                    Alle auswählen ({selectedLeads.size} / {leads.length})
+                    Alle auswählen ({selectedLeads.size} / {safeLeads.length})
                   </span>
                 </label>
                 <span className="text-sm text-gray-600">
@@ -194,7 +225,7 @@ export function ArchiveLeadsModal({ isOpen, onClose, onArchived }: ArchiveLeadsM
 
               {/* Lead List */}
               <div className="space-y-3">
-                {leads.map(lead => (
+                {safeLeads.map(lead => (
                   <div
                     key={lead.id}
                     className={`p-4 border rounded-lg transition-all ${
