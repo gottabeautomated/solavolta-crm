@@ -22,14 +22,21 @@ export function DailyDashboard({ onOpenLead }: Props) {
   const efu = useEnhancedFollowUps()
   const { leads, loading: leadsLoading } = useLeads()
 
+  // Safety: ensure arrays are always defined (use useMemo to avoid recreating on every render)
+  const safeToday = React.useMemo(() => Array.isArray(today) ? today : [], [today])
+  const safeOverdue = React.useMemo(() => Array.isArray(overdue) ? overdue : [], [overdue])
+  const safeWeek = React.useMemo(() => Array.isArray(week) ? week : [], [week])
+  const safePriorities = React.useMemo(() => Array.isArray(priorities) ? priorities : [], [priorities])
+  const safeLeads = React.useMemo(() => Array.isArray(leads) ? leads : [], [leads])
+
   // Debug-Start
   try {
     console.log('🔍 === DASHBOARD DEBUG START ===')
     console.log('Dashboard Component mounted')
     console.log('Auth activeTenantId =', activeTenantId)
     console.log('Calling useLeads...')
-    const leadsCount = Array.isArray(leads) ? leads.length : 'undefined'
-    const statuses = Array.isArray(leads) ? Array.from(new Set(leads.map((l: any) => String(l.lead_status)))) : []
+    const leadsCount = safeLeads.length
+    const statuses = Array.from(new Set(safeLeads.map((l: any) => String(l.lead_status))))
     console.log('useLeads count =', leadsCount, 'loading =', !!leadsLoading, 'statuses =', statuses)
   } catch {}
 
@@ -143,15 +150,15 @@ export function DailyDashboard({ onOpenLead }: Props) {
       const attemptLeadIds = Array.from(new Set((data || []).map((r: any) => r.lead_id)))
 
       // Neue Leads / Nicht erreicht aus bereits geladenen Leads ableiten (gleiche RLS/Tenant-Filter wie Lead-Liste)
-      const derived = Array.isArray(leads) ? leads.filter((l: any) => {
+      const derived = safeLeads.filter((l: any) => {
         const s = normalizeStatus(l?.lead_status)
         if (contactFilters.excludeArchived && (l as any)?.archived) return false
         if (contactFilters.excludeLost && s === 'verloren') return false
         const allowNeu = contactFilters.neu && s === 'neu'
         const allowNE = contactFilters.nichtErreicht && s.startsWith('nicht erreicht')
         return allowNeu || allowNE
-      }) : []
-      console.log('Heute-kontaktieren: leads total', Array.isArray(leads) ? leads.length : 0, 'derived', derived.length)
+      })
+      console.log('Heute-kontaktieren: leads total', safeLeads.length, 'derived', derived.length)
       // Debug: Prüfe konkrete UUID, wenn vorhanden
       const DEBUG_ID = '03c4bf7b-a1d1-457c-a13f-db35b693c1a4'
       if (derived.some((l: any) => l.id === DEBUG_ID)) {
@@ -203,7 +210,7 @@ export function DailyDashboard({ onOpenLead }: Props) {
       setTodayContacts(deduped as any)
     })()
     return () => { mounted = false }
-  }, [activeTenantId, leads, contactFilters])
+  }, [activeTenantId, safeLeads, contactFilters])
 
   const loading = loadingToday || loadingOverdue || loadingWeek || loadingPrio
   const error = errorToday || errorOverdue || errorWeek || errorPrio
@@ -229,18 +236,18 @@ export function DailyDashboard({ onOpenLead }: Props) {
 
       {/* Kopf-Kacheln */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <StatTile label="Überfällig" value={overdue.length} color="red" />
-        <StatTile label="Heute" value={today.length} color="blue" />
-        <StatTile label="Diese Woche (FU+Termine)" value={week.reduce((n,w)=> n + (w.efuCount||0) + (w.appointmentCount||0), 0)} color="amber" />
+        <StatTile label="Überfällig" value={safeOverdue.length} color="red" />
+        <StatTile label="Heute" value={safeToday.length} color="blue" />
+        <StatTile label="Diese Woche (FU+Termine)" value={safeWeek.reduce((n,w)=> n + (w.efuCount||0) + (w.appointmentCount||0), 0)} color="amber" />
       </div>
 
       {/* Hauptbereich: Heute links, Nächste 7 Tage rechts */}
       <div className="grid gap-4 md:grid-cols-2">
-        <Card title={`Heute (${today.length})`}>
-          {today.length === 0 ? (
+        <Card title={`Heute (${safeToday.length})`}>
+          {safeToday.length === 0 ? (
             <div className="text-gray-500">Heute keine Aufgaben</div>
           ) : (
-            <TaskListLite tasks={today} onOpenLead={onOpenLead} />
+            <TaskListLite tasks={safeToday} onOpenLead={onOpenLead} />
           )}
         </Card>
         <Card title="Kalender – diese Woche">
@@ -252,7 +259,7 @@ export function DailyDashboard({ onOpenLead }: Props) {
       <div className="grid gap-4 md:grid-cols-2">
         <Card title="Top Leads">
           <ul className="divide-y">
-            {priorities.map((p) => (
+            {safePriorities.map((p) => (
               <li key={p.leadId} className="p-3 flex items-center justify-between">
                 <div>
                   <div className="font-medium">{p.name || p.email || p.phone || p.leadId}</div>
@@ -265,7 +272,7 @@ export function DailyDashboard({ onOpenLead }: Props) {
         </Card>
         <Card title="Woche (Anzahl je Tag)">
           <div className="grid grid-cols-7 gap-2 text-sm">
-            {week.map((d) => {
+            {safeWeek.map((d) => {
               const dt = new Date(d.dayDate)
               const label = dt.toLocaleDateString('de-DE', { weekday: 'short' })
               const day = dt.getDate().toString().padStart(2, '0')
