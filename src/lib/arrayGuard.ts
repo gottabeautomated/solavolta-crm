@@ -14,9 +14,19 @@ const originalForEach = Array.prototype.forEach
 const originalFilter = Array.prototype.filter
 const originalReduce = Array.prototype.reduce
 
-// Create safe wrapper
+// Create safe wrapper that AGGRESSIVELY logs everything
 function createSafeMethod(original: Function, methodName: string) {
   return function(this: any, ...args: any[]) {
+    // Log EVERY call for debugging
+    if (methodName === 'map' && (this == null || this === undefined)) {
+      console.error(`🚨 CRITICAL: .${methodName}() called on undefined/null!`, {
+        stack: new Error().stack,
+        thisValue: this,
+        args: args
+      })
+      return []
+    }
+    
     if (this == null || this === undefined) {
       console.error(`🚨 CRITICAL: .${methodName}() called on undefined/null!`, {
         stack: new Error().stack,
@@ -24,10 +34,15 @@ function createSafeMethod(original: Function, methodName: string) {
       })
       return methodName === 'forEach' ? undefined : []
     }
+    
     try {
       return original.apply(this, args)
     } catch (error) {
-      console.error(`🚨 ERROR in .${methodName}():`, error)
+      console.error(`🚨 ERROR in .${methodName}():`, error, {
+        stack: new Error().stack,
+        thisValue: this,
+        args: args
+      })
       return methodName === 'forEach' ? undefined : []
     }
   }
@@ -69,7 +84,30 @@ Object.defineProperty(Array.prototype, 'reduce', {
   enumerable: false
 })
 
-console.log('✅ Array Guard v2 installed - ALL array methods are now crash-proof')
+// Also patch String.prototype.slice for safety
+const originalStringSlice = String.prototype.slice;
+(String.prototype as any).slice = function(...args: any[]) {
+  if (this == null || this === undefined) {
+    console.error('🚨 CRITICAL: String.slice() called on undefined/null!', {
+      stack: new Error().stack,
+      thisValue: this,
+      args: args
+    })
+    return ''
+  }
+  try {
+    return originalStringSlice.apply(this, args)
+  } catch (error) {
+    console.error('🚨 ERROR in String.slice():', error, {
+      stack: new Error().stack,
+      thisValue: this,
+      args: args
+    })
+    return ''
+  }
+}
+
+console.log('✅ Array Guard v3 installed - ALL array AND string methods are now crash-proof')
 
 // Re-install every second to fight against any overrides
 setInterval(() => {
