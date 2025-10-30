@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useEnhancedFollowUps } from '../hooks/useEnhancedFollowUps'
 import { normalizeStatus } from '../lib/statusUtils'
 import { useLeads } from '../hooks/useLeads'
+import { ArchiveLeadsModal } from './ArchiveLeadsModal'
 
 interface Props {
   onOpenLead?: (leadId: string) => void
@@ -38,6 +39,7 @@ export function DailyDashboard({ onOpenLead }: Props) {
   const [appointments7, setAppointments7] = React.useState<Array<{ id: string; starts_at: string; lead_id: string; title: string }>>([])
   const [debugLeads, setDebugLeads] = React.useState<Array<{ id: string; lead_status: string; name?: string }>>([])
   const [contactFilters, setContactFilters] = React.useState({ neu: true, nichtErreicht: true, excludeArchived: true, excludeLost: true })
+  const [showArchiveModal, setShowArchiveModal] = React.useState(false)
 
   React.useEffect(() => {
     let mounted = true
@@ -213,7 +215,16 @@ export function DailyDashboard({ onOpenLead }: Props) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Daily Dashboard</h2>
-        <button className="text-sm text-blue-600" onClick={() => { rToday(); rOverdue(); rWeek(); rPrio(); }}>Aktualisieren</button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setShowArchiveModal(true)}
+            className="px-4 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
+          >
+            <span>🗄️</span>
+            <span>Archivierung</span>
+          </button>
+          <button className="text-sm text-blue-600" onClick={() => { rToday(); rOverdue(); rWeek(); rPrio(); }}>Aktualisieren</button>
+        </div>
       </div>
 
       {/* Kopf-Kacheln */}
@@ -369,6 +380,18 @@ export function DailyDashboard({ onOpenLead }: Props) {
           )}
         </Card>
       </div>
+
+      {/* Archive Modal */}
+      <ArchiveLeadsModal
+        isOpen={showArchiveModal}
+        onClose={() => setShowArchiveModal(false)}
+        onArchived={() => {
+          rToday()
+          rOverdue()
+          rWeek()
+          rPrio()
+        }}
+      />
     </div>
   )
 }
