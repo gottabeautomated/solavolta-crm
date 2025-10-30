@@ -46,8 +46,8 @@ export function EnhancedFollowUpsPanel({ onOpenLead }: Props) {
         <div className="p-4 text-gray-500">Keine Einträge</div>
       ) : (
         <ul className="divide-y">
-          {safeItems.map((it) => (
-            <li key={it.id} className="p-3 flex items-center justify-between text-sm">
+          {safeItems.filter(it => it != null).map((it) => (
+            <li key={it?.id || Math.random()} className="p-3 flex items-center justify-between text-sm">
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 <input type="checkbox" checked={!!selected[it.id]} onChange={(e)=>setSelected(s=>({ ...s, [it.id]: e.target.checked }))} />
                 <div className="flex-1 min-w-0">
@@ -59,7 +59,7 @@ export function EnhancedFollowUpsPanel({ onOpenLead }: Props) {
                   <div className="text-xs text-gray-600 flex items-center gap-2">
                     <input
                       type="date"
-                      value={String(it.due_date).slice(0,10)}
+                      value={it?.due_date ? String(it.due_date).slice(0,10) : ''}
                       onChange={async(e)=>{ await update(it.id, { due_date: e.target.value }); refetch() }}
                       className="text-xs border rounded px-1 py-0.5"
                     />
