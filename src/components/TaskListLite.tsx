@@ -14,6 +14,9 @@ interface TaskListLiteProps {
 }
 
 export function TaskListLite({ tasks, onOpenLead, className, estimatedRowHeight = 60 }: TaskListLiteProps) {
+  // Safety: ensure tasks is always an array
+  const safeTasks = React.useMemo(() => Array.isArray(tasks) ? tasks : [], [tasks])
+
   const { completeTask, rescheduleTask } = useDashboard()
   const { byId: leadById } = useLeadIndex()
   const [selected, setSelected] = React.useState<Set<string>>(new Set())
@@ -48,12 +51,12 @@ export function TaskListLite({ tasks, onOpenLead, className, estimatedRowHeight 
     setViewport({ height: el.clientHeight, scrollTop: el.scrollTop })
   }, [])
 
-  const totalHeight = tasks.length * estimatedRowHeight
+  const totalHeight = safeTasks.length * estimatedRowHeight
   const startIndex = Math.max(0, Math.floor(viewport.scrollTop / estimatedRowHeight) - 5)
   const visibleCount = Math.ceil(viewport.height / estimatedRowHeight) + 10
-  const endIndex = Math.min(tasks.length, startIndex + visibleCount)
+  const endIndex = Math.min(safeTasks.length, startIndex + visibleCount)
   const offsetY = startIndex * estimatedRowHeight
-  const visibleTasks = tasks.slice(startIndex, endIndex)
+  const visibleTasks = safeTasks.slice(startIndex, endIndex)
 
   const toggleSelect = (id: string) => {
     setSelected(prev => {
@@ -125,10 +128,10 @@ export function TaskListLite({ tasks, onOpenLead, className, estimatedRowHeight 
   // For simplicity, we attach methods on window symbol (lightweight)
   ;(window as any).__taskListLite = {
     focusFirst: () => setFocusedIndex(0),
-    focusNext: () => setFocusedIndex(i => Math.min(tasks.length - 1, i + 1)),
+    focusNext: () => setFocusedIndex(i => Math.min(safeTasks.length - 1, i + 1)),
     focusPrev: () => setFocusedIndex(i => Math.max(0, i - 1)),
-    toggleCurrent: () => { const id = tasks[focusedIndex]?.taskId; if (id) toggleSelect(id) },
-    openCurrent: () => { const t = tasks[focusedIndex]; if (t && onOpenLead) onOpenLead(t.leadId) },
+    toggleCurrent: () => { const id = safeTasks[focusedIndex]?.taskId; if (id) toggleSelect(id) },
+    openCurrent: () => { const t = safeTasks[focusedIndex]; if (t && onOpenLead) onOpenLead(t.leadId) },
   }
 
   return (
