@@ -3,7 +3,8 @@ import { ActionCard, type ActionTask } from './ui/ActionCard'
 
 export function TodayAgenda({ tasks, onOpenLead }: { tasks: ActionTask[]; onOpenLead?: (id: string) => void }) {
   const [showAll, setShowAll] = useState(false)
-  const list = tasks || []
+  // CRITICAL: Ensure tasks is always an array, even if passed as undefined
+  const list = React.useMemo(() => Array.isArray(tasks) ? tasks : [], [tasks])
 
   if (list.length === 0) {
     return (
