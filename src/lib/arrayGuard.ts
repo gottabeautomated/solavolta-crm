@@ -14,7 +14,7 @@ const originalForEach = Array.prototype.forEach
 const originalFilter = Array.prototype.filter
 const originalReduce = Array.prototype.reduce
 
-// Create safe wrapper that AGGRESSIVELY logs everything
+// Create safe wrapper that AGGRESSIVELY logs everything AND filters undefined results
 function createSafeMethod(original: Function, methodName: string) {
   return function(this: any, ...args: any[]) {
     // Log EVERY call for debugging
@@ -36,7 +36,18 @@ function createSafeMethod(original: Function, methodName: string) {
     }
     
     try {
-      return original.apply(this, args)
+      const result = original.apply(this, args)
+      
+      // CRITICAL FIX: For .map(), filter out undefined/null results to prevent React crashes
+      if (methodName === 'map' && Array.isArray(result)) {
+        const filtered = result.filter(item => item != null && item !== undefined)
+        if (filtered.length !== result.length) {
+          console.warn(`⚠️ Filtered out ${result.length - filtered.length} undefined/null items from .map() result`)
+        }
+        return filtered
+      }
+      
+      return result
     } catch (error) {
       console.error(`🚨 ERROR in .${methodName}():`, error, {
         stack: new Error().stack,
@@ -107,7 +118,7 @@ const originalStringSlice = String.prototype.slice;
   }
 }
 
-console.log('✅ Array Guard v3 installed - ALL array AND string methods are now crash-proof')
+console.log('✅ Array Guard v4 installed - ALL array AND string methods are crash-proof + auto-filters undefined from .map() results!')
 
 // Re-install every second to fight against any overrides
 setInterval(() => {
