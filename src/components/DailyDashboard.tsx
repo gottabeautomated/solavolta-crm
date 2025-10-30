@@ -444,6 +444,9 @@ function toDateISO(d: Date) {
 }
 
 function WeekCalendar({ appointments, onOpenLead }: { appointments: Array<{ id: string; starts_at: string; lead_id: string; title: string }>; onOpenLead?: (id: string) => void }) {
+  // Safety: ensure appointments is always an array
+  const safeAppointments = React.useMemo(() => Array.isArray(appointments) ? appointments : [], [appointments])
+
   const days = React.useMemo(() => {
     const today = new Date()
     const mon = startOfWeek(today)
@@ -455,13 +458,13 @@ function WeekCalendar({ appointments, onOpenLead }: { appointments: Array<{ id: 
 
   const grouped = React.useMemo(() => {
     const map: Record<string, Array<{ id: string; starts_at: string; lead_id: string; title: string }>> = {}
-    appointments.forEach(a => {
+    safeAppointments.forEach(a => {
       const key = toDateISO(new Date(a.starts_at))
       if (!map[key]) map[key] = []
       map[key].push(a)
     })
     return map
-  }, [appointments])
+  }, [safeAppointments])
 
   return (
     <div className="grid grid-cols-7 gap-2 text-xs">
