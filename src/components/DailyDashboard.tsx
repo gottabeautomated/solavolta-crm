@@ -48,6 +48,11 @@ export function DailyDashboard({ onOpenLead }: Props) {
   const [contactFilters, setContactFilters] = React.useState({ neu: true, nichtErreicht: true, excludeArchived: true, excludeLost: true })
   const [showArchiveModal, setShowArchiveModal] = React.useState(false)
 
+  // Additional safety for state arrays
+  const safeTodayContacts = React.useMemo(() => Array.isArray(todayContacts) ? todayContacts : [], [todayContacts])
+  const safeAppointments7 = React.useMemo(() => Array.isArray(appointments7) ? appointments7 : [], [appointments7])
+  const safeWeekAppointments = React.useMemo(() => Array.isArray(weekAppointments) ? weekAppointments : [], [weekAppointments])
+
   React.useEffect(() => {
     let mounted = true
     ;(async () => {
@@ -215,6 +220,20 @@ export function DailyDashboard({ onOpenLead }: Props) {
   const loading = loadingToday || loadingOverdue || loadingWeek || loadingPrio
   const error = errorToday || errorOverdue || errorWeek || errorPrio
 
+  // AGGRESSIVE DEBUG: Log all values to find the culprit
+  console.log('🔍 Dashboard render check:', {
+    today: Array.isArray(today) ? `Array(${today.length})` : typeof today,
+    overdue: Array.isArray(overdue) ? `Array(${overdue.length})` : typeof overdue,
+    week: Array.isArray(week) ? `Array(${week.length})` : typeof week,
+    priorities: Array.isArray(priorities) ? `Array(${priorities.length})` : typeof priorities,
+    leads: Array.isArray(leads) ? `Array(${leads.length})` : typeof leads,
+    'efu.today': efu.today ? `Array(${efu.today.length})` : typeof efu.today,
+    'efu.overdue': efu.overdue ? `Array(${efu.overdue.length})` : typeof efu.overdue,
+    weekAppointments: Array.isArray(weekAppointments) ? `Array(${weekAppointments.length})` : typeof weekAppointments,
+    todayContacts: Array.isArray(todayContacts) ? `Array(${todayContacts.length})` : typeof todayContacts,
+    appointments7: Array.isArray(appointments7) ? `Array(${appointments7.length})` : typeof appointments7,
+  })
+
   if (loading) return <div className="p-4">Lade Dashboard…</div>
   if (error) return <div className="p-4 text-red-600">{String(error)}</div>
 
@@ -251,7 +270,7 @@ export function DailyDashboard({ onOpenLead }: Props) {
           )}
         </Card>
         <Card title="Kalender – diese Woche">
-          <WeekCalendar appointments={weekAppointments} onOpenLead={onOpenLead} />
+          <WeekCalendar appointments={safeWeekAppointments} onOpenLead={onOpenLead} />
         </Card>
       </div>
 
@@ -288,7 +307,7 @@ export function DailyDashboard({ onOpenLead }: Props) {
             })}
           </div>
         </Card>
-        <Card title={`Heute kontaktieren (${todayContacts.length})`}>
+        <Card title={`Heute kontaktieren (${safeTodayContacts.length})`}>
           {/* Sichtbare Filter – ganz oben platzieren */}
           <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-gray-700">
             <label className="flex items-center gap-1">
@@ -321,7 +340,7 @@ export function DailyDashboard({ onOpenLead }: Props) {
             </div>
           ) : (
             <ul className="divide-y">
-              {todayContacts.map(it => (
+              {safeTodayContacts.map(it => (
                 <li key={it.lead_id} className="py-2 flex items-center justify-between">
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-gray-900 truncate">{it.name || it.lead_id}</div>
@@ -370,11 +389,11 @@ export function DailyDashboard({ onOpenLead }: Props) {
           </div>
         </Card>
         <Card title="Kommende Termine (7 Tage)">
-          {appointments7.length === 0 ? (
+          {safeAppointments7.length === 0 ? (
             <div className="text-gray-500 text-sm">Keine Termine in den nächsten 7 Tagen.</div>
           ) : (
             <ul className="divide-y">
-              {appointments7.map(a => (
+              {safeAppointments7.map(a => (
                 <li key={a.id} className="py-2 flex items-center justify-between">
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-gray-900 truncate">{new Date(a.starts_at).toLocaleString('de-DE')}</div>
