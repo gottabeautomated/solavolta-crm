@@ -153,8 +153,12 @@ export function DashboardOverview({ onOpenLead }: Props) {
     return true
   }
 
-  const overdueFiltered = overdue.map(t=>({ ...t, source: 'efu' as const })).filter(matchesFilters)
-  const todayFiltered = today.map(t=>({ ...t, source: t.source })).filter(matchesFilters)
+  // Safety: ensure arrays are defined before mapping
+  const safeOverdue = Array.isArray(overdue) ? overdue : []
+  const safeToday = Array.isArray(today) ? today : []
+  
+  const overdueFiltered = safeOverdue.map(t=>({ ...t, source: 'efu' as const })).filter(matchesFilters)
+  const todayFiltered = safeToday.map(t=>({ ...t, source: t.source })).filter(matchesFilters)
 
   // Mini-Karte: Nächster Schritt je Lead (Top 6) – Hooks VOR early returns platzieren
   // const [nextSteps, setNextSteps] = React.useState<Array<{ leadId: string; leadName: string; next: string; due: string | null }>>([])
@@ -337,7 +341,7 @@ export function DashboardOverview({ onOpenLead }: Props) {
           </div>
         ) : (
           <ul className="divide-y">
-            {todayContacts.map((it) => (
+            {(todayContacts || []).map((it) => (
               <li key={it.lead_id} className="py-2 flex items-center justify-between">
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-gray-900 truncate">{it.name || it.lead_id}</div>
@@ -359,7 +363,7 @@ export function DashboardOverview({ onOpenLead }: Props) {
           <Empty text="Keine Termine heute." />
         ) : (
           <ul className="divide-y">
-            {todayAppointments.map(a => (
+            {(todayAppointments || []).map(a => (
               <li key={a.id} className="py-2 flex items-center justify-between">
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-gray-900 truncate">{new Date(a.starts_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} · {a.title}</div>
@@ -377,7 +381,7 @@ export function DashboardOverview({ onOpenLead }: Props) {
           <Empty text="Keine Termine in den nächsten 7 Tagen." />
         ) : (
           <ul className="divide-y">
-            {appointments7.map(a => (
+            {(appointments7 || []).map(a => (
               <li key={a.id} className="py-2 flex items-center justify-between">
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-gray-900 truncate">{new Date(a.starts_at).toLocaleString('de-DE')}</div>
@@ -393,7 +397,7 @@ export function DashboardOverview({ onOpenLead }: Props) {
       {/* Kompakte Wochenübersicht */}
       <Section title="Diese Woche" color="green">
         <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
-          {week.map(w => {
+          {(week || []).map(w => {
             const d = new Date(w.dayDate)
             return (
               <div key={w.dayDate} className="p-3 bg-white rounded border text-sm">
