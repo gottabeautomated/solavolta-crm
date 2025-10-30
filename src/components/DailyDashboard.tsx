@@ -337,7 +337,7 @@ export function DailyDashboard({ onOpenLead }: Props) {
           <div className="grid grid-cols-1 gap-4">
             <div>
               <div className="text-xs text-gray-500 mb-1">Heute</div>
-              {efu.today?.length === 0 ? <div className="text-gray-500 text-sm">Keine</div> : (
+              {!efu.today || efu.today.length === 0 ? <div className="text-gray-500 text-sm">Keine</div> : (
                 <ul className="divide-y">
                   {efu.today.map((it: any) => (
                     <li key={it.id} className="py-2 flex items-center justify-between">
@@ -353,7 +353,7 @@ export function DailyDashboard({ onOpenLead }: Props) {
             </div>
             <div>
               <div className="text-xs text-gray-500 mb-1">Überfällig</div>
-              {efu.overdue?.length === 0 ? <div className="text-gray-500 text-sm">Keine</div> : (
+              {!efu.overdue || efu.overdue.length === 0 ? <div className="text-gray-500 text-sm">Keine</div> : (
                 <ul className="divide-y">
                   {efu.overdue.map((it: any) => (
                     <li key={it.id} className="py-2 flex items-center justify-between">
