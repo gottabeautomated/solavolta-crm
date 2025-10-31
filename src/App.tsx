@@ -26,7 +26,7 @@ import { KeepAlive } from './components/ui/KeepAlive'
 type View = 'dashboard' | 'list' | 'detail' | 'map' | 'followups' | 'docs' | 'impressum' | 'datenschutz' | 'agb'
 
 function Dashboard() {
-  const [currentView, setCurrentView] = useState<View>(() => (typeof window !== 'undefined' ? (window.localStorage.getItem('currentView') as View) : null) || 'dashboard')
+  const [currentView, setCurrentView] = useState<View>('dashboard')
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(() => (typeof window !== 'undefined' ? window.localStorage.getItem('selectedLeadId') : null))
   // Tracking optional; zurzeit nicht genutzt → entfernt, um Linter zu säubern
   // const [visited, setVisited] = useState<Set<View>>(new Set(['dashboard']))
