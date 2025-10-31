@@ -268,7 +268,7 @@ export function ArchiveLeadsModal({ isOpen, onClose, onArchived }: ArchiveLeadsM
                             className={`text-xs px-2 py-1 rounded border-0 font-medium ${getStatusBadgeColor(lead.lead_status)}`}
                           >
                             {LEAD_STATUS_OPTIONS.map(status => (
-                              <option key={status} value={status}>{status}</option>
+                              <option key={status.value} value={status.value}>{status.label}</option>
                             ))}
                           </select>
                         </div>

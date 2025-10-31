@@ -24,7 +24,12 @@ interface Props {
 }
 
 export function DashboardOverview({ onOpenLead }: Props) {
-  useDashboardRealtime()
+  try {
+    useDashboardRealtime()
+  } catch (err) {
+    console.error('❌ DashboardRealtime error:', err)
+  }
+  
   const { items: overdue } = useOverdueTasks()
   const { items: today } = useTodayTasks()
   const { items: week } = useWeekOverview()
