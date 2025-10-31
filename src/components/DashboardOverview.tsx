@@ -17,6 +17,7 @@ import { registerKeyboardShortcuts } from '../lib/keyboardShortcuts'
 import { useAuth } from '../hooks/useAuth'
 import { useLeads } from '../hooks/useLeads'
 import { normalizeStatus } from '../lib/statusUtils'
+import { ArchiveLeadsModal } from './ArchiveLeadsModal'
 
 interface Props {
   onOpenLead?: (leadId: string) => void
@@ -168,6 +169,7 @@ export function DashboardOverview({ onOpenLead }: Props) {
   const [contactFilters, setContactFilters] = React.useState({ neu: true, nichtErreicht: true, excludeArchived: true, excludeLost: true })
   const [todayAppointments, setTodayAppointments] = React.useState<Array<{ id: string; starts_at: string; lead_id: string; title: string }>>([])
   const [appointments7, setAppointments7] = React.useState<Array<{ id: string; starts_at: string; lead_id: string; title: string }>>([])
+  const [showArchiveModal, setShowArchiveModal] = React.useState(false)
 
   React.useEffect(() => {
     ;(async () => {
@@ -293,8 +295,19 @@ export function DashboardOverview({ onOpenLead }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* KpiBar entfernt für maximale Übersicht */}
-      <QuickStats onOpenLead={onOpenLead} />
+      {/* Header mit Archivierungs-Button */}
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <QuickStats onOpenLead={onOpenLead} />
+        </div>
+        <button 
+          onClick={() => setShowArchiveModal(true)}
+          className="px-4 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2 ml-4"
+        >
+          <span>🗄️</span>
+          <span>Archivierung</span>
+        </button>
+      </div>
       <SmartFilters />
 
       {/* Dringend zuerst */}
@@ -413,6 +426,16 @@ export function DashboardOverview({ onOpenLead }: Props) {
           })}
         </div>
       </Section>
+
+      {/* Archivierungs-Modal */}
+      <ArchiveLeadsModal 
+        isOpen={showArchiveModal} 
+        onClose={() => setShowArchiveModal(false)}
+        onArchived={() => {
+          // Optional: Daten neu laden wenn nötig
+          setShowArchiveModal(false)
+        }}
+      />
     </div>
   )
 }
