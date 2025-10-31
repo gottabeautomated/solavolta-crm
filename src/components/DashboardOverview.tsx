@@ -299,10 +299,10 @@ export function DashboardOverview({ onOpenLead }: Props) {
   }, [activeTenantId, today.length])
 
   return (
-    <div className="space-y-4">
-      {/* KpiBar entfernt für maximale Übersicht */}
-      <div className="flex items-center justify-between">
-        <QuickStats onOpenLead={onOpenLead} />
+    <div className="space-y-4 p-4">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-2xl font-bold">Dashboard</h2>
         <button 
           onClick={() => setShowArchiveModal(true)}
           className="px-4 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
@@ -311,6 +311,8 @@ export function DashboardOverview({ onOpenLead }: Props) {
           <span>Archivierung</span>
         </button>
       </div>
+      
+      <QuickStats onOpenLead={onOpenLead} />
       <SmartFilters />
 
       {/* Dringend zuerst */}
