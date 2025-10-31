@@ -299,12 +299,7 @@ export function DashboardOverview({ onOpenLead }: Props) {
   }, [activeTenantId, today.length])
 
   return (
-    <div className="space-y-4 p-4 bg-yellow-200 border-4 border-red-500">
-      {/* ⚠️ DEBUG: If you see this, the component renders! */}
-      <div className="text-6xl text-red-600 font-black p-8 bg-white">
-        🔥 DASHBOARD RENDERT! 🔥
-      </div>
-      
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-bold">Dashboard</h2>
