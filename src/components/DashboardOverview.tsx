@@ -295,14 +295,12 @@ export function DashboardOverview({ onOpenLead }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Header mit Archivierungs-Button */}
+      {/* KpiBar entfernt für maximale Übersicht */}
       <div className="flex items-center justify-between">
-        <div className="flex-1">
-          <QuickStats onOpenLead={onOpenLead} />
-        </div>
+        <QuickStats onOpenLead={onOpenLead} />
         <button 
           onClick={() => setShowArchiveModal(true)}
-          className="px-4 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2 ml-4"
+          className="px-4 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
         >
           <span>🗄️</span>
           <span>Archivierung</span>
